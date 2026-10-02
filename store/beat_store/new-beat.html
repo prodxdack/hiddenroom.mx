@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuevo Beat | Hidden Room</title>
+  <link rel="icon" type="image/webp" href="../../assets/img/orange_logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;500;600;700&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../styles.css?v=20261001-beat-player-v1">
+  <link rel="stylesheet" href="producer-ready.css?v=20260921-beat-admin-tabs-v1">
+</head>
+<body class="store-page hr-page new-beat-page" data-hr-chrome data-hr-context="store">
+  <div id="hr-global-nav"></div>
+  <main class="producer-ready-shell new-beat-shell">
+    <header class="producer-ready-header new-beat-hero">
+      <div class="new-beat-hero__copy">
+        <p class="eyebrow hr-eyebrow">Producer Ready · Beat Store</p>
+        <h1 id="form-title" class="hr-title-xl">Nuevo Beat</h1>
+        <p class="new-beat-hero__subtitle">Guarda primero un borrador. Publicar siempre requiere revisión.</p>
+      </div>
+      <a class="secondary-button new-beat-hero__link" href="my-beats.html">Mis Beats <span aria-hidden="true">&gt;</span></a>
+    </header>
+
+    <section class="producer-ready-panel new-beat-panel">
+      <form id="beat-form" class="producer-ready-form new-beat-form">
+        <section class="new-beat-section" aria-labelledby="new-beat-info-title">
+          <div class="new-beat-section__step">
+            <h2 id="new-beat-info-title">Información</h2>
+            <p>Completa la información básica de tu beat.</p>
+          </div>
+          <div class="new-beat-section__content">
+            <div class="producer-ready-form__grid new-beat-info-grid">
+              <label class="producer-ready-field"><span>Título</span><input name="name" required maxlength="160" placeholder="Ej. Noches de Neón" autocomplete="off"></label>
+              <label class="producer-ready-field"><span>Slug</span><input name="slug" required pattern="[a-z0-9-]+" maxlength="160" placeholder="noches-de-neon" autocomplete="off"></label>
+              <label class="producer-ready-field"><span>Precio base <small>(MXN)</small></span><input name="price" type="number" min="0" step="0.01" required placeholder="0.00" inputmode="decimal"></label>
+              <label class="producer-ready-field"><span>Género</span><input name="genre" maxlength="80" placeholder="Ej. Trap / Hip Hop"></label>
+              <div class="producer-ready-field beat-autodetect-field"><label class="hr-label" for="new-beat-bpm">BPM</label><div class="beat-ad-input"><input class="hr-input" id="new-beat-bpm" name="bpm" type="number" min="1" max="300" placeholder="140" inputmode="numeric"><span class="beat-ad-badge" data-ad-badge="bpm" hidden>AD</span></div><button class="secondary-button beat-autodetect-button" type="button" data-autodetect="bpm" disabled>Autodetectar</button></div>
+              <div class="producer-ready-field beat-autodetect-field"><label class="hr-label" for="new-beat-key">Tonalidad</label><div class="beat-ad-input"><input class="hr-input" id="new-beat-key" name="key" maxlength="24" placeholder="Ej. F# minor"><span class="beat-ad-badge" data-ad-badge="key" hidden>AD</span></div><button class="secondary-button beat-autodetect-button" type="button" data-autodetect="key" disabled>Autodetectar</button></div>
+              <label class="producer-ready-field new-beat-field--description"><span>Descripción <small>(opcional)</small></span><textarea name="description" rows="4" maxlength="3000" placeholder="Cuenta brevemente la energía, referencias o detalles de producción."></textarea></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="new-beat-section" aria-labelledby="new-beat-files-title">
+          <div class="new-beat-section__step">
+            <h2 id="new-beat-files-title">Archivos</h2>
+            <p>Sube los materiales que acompañan tu lanzamiento.</p>
+          </div>
+          <div class="new-beat-section__content">
+            <div class="new-beat-upload-grid">
+              <label class="new-beat-upload-card">
+                <span class="new-beat-upload-card__icon" aria-hidden="true">▧</span>
+                <span class="new-beat-upload-card__heading"><strong>Portada</strong><small>JPG, PNG o WEBP · recomendada 1:1</small></span>
+                <span class="new-beat-upload-card__drop"><strong>Haz clic para subir</strong><small>o arrastra un archivo aquí</small><input name="cover" type="file" accept="image/*,.jpg,.jpeg,.png,.webp"><small id="cover-state">Sin portada nueva seleccionada.</small></span>
+              </label>
+              <label class="new-beat-upload-card">
+                <span class="new-beat-upload-card__icon" aria-hidden="true">◒</span>
+                <span class="new-beat-upload-card__heading"><strong>Master / WAV</strong><small>WAV sin comprimir · se generará un MP3 protegido</small></span>
+                <span class="new-beat-upload-card__drop"><strong>Haz clic para subir</strong><small>o arrastra un archivo aquí</small><input name="audio" type="file" accept=".wav,audio/wav,audio/x-wav,audio/wave"><small id="audio-state">Sin master nuevo seleccionado.</small></span>
+              </label>
+              <label class="new-beat-upload-card">
+                <span class="new-beat-upload-card__icon" aria-hidden="true">⌁</span>
+                <span class="new-beat-upload-card__heading"><strong>Stems <small>(opcional)</small></strong><small>Un archivo ZIP protegido</small></span>
+                <span class="new-beat-upload-card__drop"><strong>Haz clic para subir</strong><small>o arrastra un archivo aquí</small><input name="stems" type="file" multiple accept="audio/*,.zip"><small>Se registran como archivos protegidos cuando el almacenamiento esté conectado.</small></span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="new-beat-section" aria-labelledby="new-beat-license-title">
+          <div class="new-beat-section__step">
+            <h2 id="new-beat-license-title">Licencias y precios</h2>
+            <p>Define qué permisos y precios tendrá cada versión.</p>
+          </div>
+          <div class="new-beat-section__content">
+            <fieldset class="new-beat-license-fieldset">
+              <legend>Selecciona las licencias disponibles</legend>
+              <div id="license-list"><p>Cargando licencias...</p></div>
+            </fieldset>
+          </div>
+        </section>
+
+        <section class="new-beat-section new-beat-section--publication" aria-labelledby="new-beat-publication-title">
+          <div class="new-beat-section__step">
+            <h2 id="new-beat-publication-title">Publicación</h2>
+            <p>Guarda como borrador o envía a revisión para su publicación.</p>
+          </div>
+          <div class="new-beat-section__content new-beat-publication-content">
+            <div class="new-beat-feedback" aria-live="polite">
+              <p id="form-error" class="producer-ready-error" role="alert"></p>
+              <p id="form-status" class="producer-ready-status" role="status"></p>
+            </div>
+            <div class="producer-ready-actions new-beat-actions">
+              <button class="secondary-button" type="submit">Guardar borrador</button>
+              <button id="submit-review" class="primary-button" type="button" disabled>Enviar a revisión <span aria-hidden="true">&gt;</span></button>
+            </div>
+          </div>
+        </section>
+      </form>
+    </section>
+  </main>
+  <script src="../../site.js?v=20261001-beat-player-v1"></script><script type="module" src="new-beat.js?v=20261002-beat-wav-master-v1"></script>
+</body>
+</html>
