@@ -81,6 +81,7 @@ const TRANSACTION_CONCEPT_OPTIONS = [
 const EVENT_FINANCE_CONCEPT_OPTIONS = ['VENUE APARTADO', 'VENUE LIQUIDACIÓN', 'FLYER', 'OTRO'];
 const CLOUD_HIDDENROOM_URL = 'https://cloud.hiddenroom.mx/';
 const CLOUD_FUNCTION_BASE = `${SUPABASE_URL}/functions/v1`;
+const CLOUD_LOCAL_API_BASE = String(window.HR_CLOUD_LOCAL_API_URL || '').trim().replace(/\/+$/, '');
 const CLOUD_STAGING_BUCKET = 'cloud-staging';
 const INSTAGRAM_SCRAPER_URL = 'http://127.0.0.1:4317';
 const INSTAGRAM_SCRAPER_STORAGE_KEY = 'hr_instagram_scraper_last_result';
@@ -114,6 +115,71 @@ async function cloudApiFetch(url, options = {}) {
   const headers = { ...authHeaders, ...(options.headers || {}) };
   return fetch(url, { ...options, headers });
 }
+
+function cloudLocalSessionKey(userId) {
+  return 'hr_cloud_debian_session:' + String(userId || '');
+}
+async function getCloudLocalToken(forceExchange = false) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token || !session.user?.id) throw new Error('Inicia sesión para usar Cloud.');
+  const key = cloudLocalSessionKey(session.user.id);
+  if (!forceExchange) {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(key) || 'null');
+      if (cached?.token && Date.parse(cached.expires_at) > Date.now() + 30000) return cached.token;
+    } catch { sessionStorage.removeItem(key); }
+  }
+  const response = await fetch(CLOUD_LOCAL_API_BASE + '/auth/exchange', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + session.access_token, Accept: 'application/json' },
+    cache: 'no-store',
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !body?.token || !body?.expires_at) {
+    throw new Error(body?.error || 'No se pudo abrir la sesión Cloud (' + response.status + ').');
+  }
+  sessionStorage.setItem(key, JSON.stringify({ token: body.token, expires_at: body.expires_at }));
+  return body.token;
+}
+async function cloudLocalFetch(route, options = {}, retryAuth = true) {
+  if (!CLOUD_LOCAL_API_BASE) throw new Error('El backend local de Cloud no está configurado.');
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = await getCloudLocalToken();
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', 'Bearer ' + token);
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  const response = await fetch(CLOUD_LOCAL_API_BASE + route, { ...options, headers, cache: 'no-store' });
+  if (response.status === 401 && retryAuth && session?.user?.id) {
+    sessionStorage.removeItem(cloudLocalSessionKey(session.user.id));
+    const refreshedToken = await getCloudLocalToken(true);
+    headers.set('Authorization', 'Bearer ' + refreshedToken);
+    return fetch(CLOUD_LOCAL_API_BASE + route, { ...options, headers, cache: 'no-store' });
+  }
+  return response;
+}
+async function revokeCloudLocalSession(userId) {
+  if (!CLOUD_LOCAL_API_BASE || !userId) return;
+  const key = cloudLocalSessionKey(userId);
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(key) || 'null');
+    if (cached?.token) {
+      await fetch(CLOUD_LOCAL_API_BASE + '/auth/revoke', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + cached.token }, cache: 'no-store',
+      });
+    }
+  } catch (err) { console.info('[HR] local Cloud session revoke:', err?.message || err); }
+  sessionStorage.removeItem(key);
+}
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'SIGNED_OUT') {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith('hr_cloud_debian_session:')) {
+        const userId = key.slice('hr_cloud_debian_session:'.length);
+        queueMicrotask(() => revokeCloudLocalSession(userId));
+      }
+    }
+  }
+});
 
 async function igFunctionFetch(functionName, payload) {
   const response = await cloudApiFetch(`${CLOUD_FUNCTION_BASE}/${functionName}`, {
@@ -181,9 +247,9 @@ function buildCloudStagingPath(userId, fileName) {
 
 async function listCloudFiles(path = state.erpCloud.currentPath) {
   const currentPath = normalizeCloudPath(path);
-  const response = await cloudApiFetch(buildCloudFunctionUrl('cloud-list', currentPath), {
-    method: 'GET',
-  });
+  const response = CLOUD_LOCAL_API_BASE
+    ? await cloudLocalFetch('/api/files?path=' + encodeURIComponent(currentPath), { method: 'GET' })
+    : await cloudApiFetch(buildCloudFunctionUrl('cloud-list', currentPath), { method: 'GET' });
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -205,6 +271,7 @@ async function listCloudFiles(path = state.erpCloud.currentPath) {
   if (Array.isArray(body.folders) || Array.isArray(body.files)) {
     folders = Array.isArray(body.folders) ? body.folders : [];
     files = Array.isArray(body.files) ? body.files : [];
+    if (CLOUD_LOCAL_API_BASE) files = files.map(file => ({ ...file, url: buildCloudFileFallbackUrl(currentPath, file.name) }));
     return { path: body.path || currentPath, folders, files };
   }
 
@@ -244,6 +311,15 @@ async function uploadCloudFileToPath(file, targetPath = '/') {
     throw new Error('El archivo esta vacio. Vuelve a exportarlo o elige otro archivo.');
   }
   const currentPath = normalizeCloudPath(targetPath);
+  if (CLOUD_LOCAL_API_BASE) {
+    const query = 'path=' + encodeURIComponent(currentPath) + '&name=' + encodeURIComponent(file.name);
+    const response = await cloudLocalFetch('/api/files/upload?' + query, {
+      method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || 'No se pudo subir el archivo (' + response.status + ').');
+    return { ...payload, targetPath: currentPath, fileName: file.name, url: buildCloudFileFallbackUrl(currentPath, file.name) };
+  }
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     throw new Error('Sesion de Supabase no disponible');
@@ -296,14 +372,14 @@ async function createCloudFolder(folderName, basePath = state.erpCloud.currentPa
 
 async function createCloudFolderAt(basePath, folderName) {
   if (!folderName) return null;
-  const response = await cloudApiFetch(`${CLOUD_FUNCTION_BASE}/cloud-folder`, {
+  const requestOptions = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      path: normalizeCloudPath(basePath),
-      folderName: folderName.trim(),
-    }),
-  });
+    body: JSON.stringify({ path: normalizeCloudPath(basePath), folderName: folderName.trim() }),
+  };
+  const response = CLOUD_LOCAL_API_BASE
+    ? await cloudLocalFetch('/api/folders', requestOptions)
+    : await cloudApiFetch(`${CLOUD_FUNCTION_BASE}/cloud-folder`, requestOptions);
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -346,9 +422,9 @@ function buildCloudFileFallbackUrl(path, fileName) {
 
 async function deleteCloudFile(itemType, itemName) {
   const currentPath = normalizeCloudPath(state.erpCloud.currentPath);
-  const response = await cloudApiFetch(`${CLOUD_FUNCTION_BASE}/cloud-delete?path=${encodeURIComponent(currentPath)}&type=${encodeURIComponent(itemType)}&name=${encodeURIComponent(itemName)}`, {
-    method: 'DELETE',
-  });
+  const response = CLOUD_LOCAL_API_BASE
+    ? await cloudLocalFetch('/api/files/item?path=' + encodeURIComponent(currentPath) + '&type=' + encodeURIComponent(itemType) + '&name=' + encodeURIComponent(itemName) + '&confirm=yes', { method: 'DELETE' })
+    : await cloudApiFetch(`${CLOUD_FUNCTION_BASE}/cloud-delete?path=${encodeURIComponent(currentPath)}&type=${encodeURIComponent(itemType)}&name=${encodeURIComponent(itemName)}`, { method: 'DELETE' });
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -2863,7 +2939,10 @@ async function downloadCloudFileFromPortal(link) {
   link.setAttribute('aria-busy', 'true');
   link.classList.add('is-loading');
   try {
-    const response = await cloudApiFetch(apiUrl, { headers: { Accept: 'application/octet-stream' } });
+    const filePath = request.path === '/' ? '/' + request.name : request.path + '/' + request.name;
+    const response = CLOUD_LOCAL_API_BASE
+      ? await cloudLocalFetch('/api/files/download?path=' + encodeURIComponent(filePath), { headers: { Accept: 'application/octet-stream' } })
+      : await cloudApiFetch(apiUrl, { headers: { Accept: 'application/octet-stream' } });
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
       throw new Error(detail || `No se pudo descargar el archivo (${response.status})`);
@@ -12182,7 +12261,7 @@ function attachMainDelegation() {
 
     if (action === 'cloud-delete-item') {
       const btn = e.target.closest('[data-item-type][data-item-name]');
-      if (btn) {
+      if (btn && window.confirm('¿Enviar “' + btn.dataset.itemName + '” a la papelera?')) {
         deleteCloudFile(btn.dataset.itemType, btn.dataset.itemName)
           .then(() => renderSection(state.activeSection))
           .catch((err) => showToast(err.message || 'No se pudo eliminar.', 'error'));
