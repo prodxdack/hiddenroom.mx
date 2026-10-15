@@ -4060,7 +4060,7 @@ async function renderErpCloud() {
           <button class="hr-btn hr-btn-primary" type="button" data-action="cloud-upload-file">Subir archivo</button>
           <button class="hr-btn hr-btn-primary" type="button" data-action="cloud-create-folder">Crear carpeta</button>
         </div>
-      <p class="hr-note">Los datos se cargan desde las funciones Supabase Edge: <code>cloud-list</code>, <code>cloud-upload</code>, <code>cloud-delete</code> y <code>cloud-folder</code>.</p>
+      <p class="hr-note">Los archivos y carpetas de Cloud se gestionan en Debian. Supabase Auth conserva el inicio de sesión.</p>
 
         <div class="hr-panel hr-card hr-stack" style="width:100%;">
           <p class="hr-eyebrow">Archivos</p>
