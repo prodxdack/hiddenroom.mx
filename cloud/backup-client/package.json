@@ -1,0 +1,9 @@
+{
+  "name": "mysauth-cloud-backup-client",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Respaldo unidireccional de carpetas Windows hacia MysAuth Cloud",
+  "scripts": {
+    "start": "node client.js"
+  }
+}

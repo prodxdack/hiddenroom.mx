@@ -1,0 +1,9 @@
+{
+  "name": "mysauth-cloud-debian-runtime",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local SQLite API and worker for MysAuth Cloud; parallel migration runtime",
+  "engines": { "node": ">=20" },
+  "scripts": { "start:api": "node src/api.js", "start:worker": "node src/worker.js", "test": "node --test" },
+  "dependencies": { "better-sqlite3": "^11.10.0" }
+}

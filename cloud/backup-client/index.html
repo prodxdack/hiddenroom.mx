@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/assets/phosphor.css">
+<title>MysAuth Cloud Â· Respaldo</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0e14;--panel:#161b25;--line:#ffffff20;--text:#f5f7fb;--muted:#a9b1c0;--red:#e0525d;--teal:#42c5b4;--danger:#ff8b91}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0%,#e0525d1d,transparent 28rem),var(--bg);color:var(--text);font:14px system-ui,sans-serif}.shell{width:min(960px,calc(100% - 28px));margin:auto;padding:36px 0 60px}header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:28px}.brand{display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,var(--red),#a52f4a);font-size:1.35rem}.mark .ph{display:block}.eyebrow{margin:0 0 6px;color:var(--teal);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:.7rem}.brand h1{margin:0;font-size:1.35rem}.card{padding:22px;border:1px solid var(--line);border-radius:18px;background:#161b25dd;box-shadow:0 20px 60px #0005;margin-bottom:16px}h2{margin:0 0 6px;font-size:1.15rem}p{color:var(--muted);line-height:1.5}.form{display:grid;gap:12px;max-width:480px}.form label{display:grid;gap:6px;color:var(--muted);font-weight:700;font-size:.8rem}.form input{min-height:42px;padding:0 11px;border:1px solid var(--line);border-radius:9px;background:#090c12;color:var(--text)}button{min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:9px;background:#202735;color:var(--text);font-weight:800;cursor:pointer}button.primary{background:var(--red);border-color:var(--red)}button.danger{color:var(--danger)}button:disabled{opacity:.5;cursor:wait}.folder-path-input{min-width:min(360px,100%);flex:1;min-height:40px;padding:0 11px;border:1px solid var(--line);border-radius:9px;background:#090c12;color:var(--text)}.toolbar{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}.folders{display:grid;gap:10px;margin-top:14px}.folder{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:13px;border:1px solid var(--line);border-radius:10px;background:#0e121a}.folder.selected{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal) inset}.folder-main{min-width:0;flex:1}.folder-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.folder-title{display:grid;gap:4px;min-width:0}.folder-title strong{font-size:.95rem}.folder code{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.78rem}.folder-status{color:var(--teal);font-size:.78rem;font-weight:800;white-space:nowrap}.folder-status.error{color:var(--danger)}.folder-progress{height:7px;margin:11px 0 8px;border-radius:999px;background:#ffffff12;overflow:hidden}.folder-progress span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--red),var(--teal));transition:width .25s ease}.folder-meta{display:flex;flex-wrap:wrap;gap:10px;color:var(--muted);font-size:.74rem}.folder-current{margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--teal);font-size:.75rem}.folder-actions{display:flex;gap:12px;flex:0 0 auto;padding-left:8px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:16px}.stat{padding:12px;border:1px solid var(--line);border-radius:10px;background:#0e121a}.stat b{display:block;font-size:1.15rem}.stat span{color:var(--muted);font-size:.72rem}.status{margin:15px 0 0;color:var(--muted)}.status.error{color:var(--danger)}.tombstones{display:grid;gap:8px;margin-top:14px}.tombstone{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid #e0525d55;border-radius:9px;background:#e0525d0c}.tombstone code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@media(max-width:620px){header{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}.folder{flex-direction:column}.folder-top{flex-direction:column;gap:6px}.folder-status{white-space:normal}.folder-actions,.folder-actions button{width:100%}}
+.count-error{color:var(--danger)}.remote-folders{display:grid;gap:10px;margin-top:14px}.remote-folder{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:13px;border:1px solid var(--line);border-radius:10px;background:#0e121a}.remote-folder-main{min-width:0;flex:1}.remote-folder strong{display:block;margin-bottom:4px}.remote-folder code{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.78rem}.remote-folder small{display:block;margin-top:7px;color:var(--muted);line-height:1.45}.remote-folder-actions{display:flex;gap:8px;align-items:center;flex:0 0 auto}.connected{color:var(--teal);font-weight:800;font-size:.78rem}@media(max-width:620px){.remote-folder{flex-direction:column}.remote-folder-actions,.remote-folder-actions button{width:100%}}</style>
+</head>
+<body>
+<main class="shell">
+<header><div class="brand"><span class="mark" aria-hidden="true"><i class="ph ph-cloud"></i></span><div><p class="eyebrow">Hidden Room</p><h1>MysAuth Cloud Â· Respaldo</h1></div></div><button id="logout" hidden>Salir</button></header>
+<section id="login" class="card"><h2>Activa tu respaldo</h2><p>Las carpetas seleccionadas se envÃ­an a Cloud cuando aparecen o cambian. Las eliminaciones locales no borran nada en Cloud.</p><form id="login-form" class="form"><label>Email<input id="email" type="email" autocomplete="username" required></label><label>ContraseÃ±a<input id="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit">Entrar</button><span id="login-message" class="status"></span></form></section>
+<section id="app" hidden>
+<div class="card"><h2>Carpetas respaldadas</h2><p>El cliente sÃ³lo sube archivos nuevos o modificados. Nunca elimina copias en Cloud.</p><div class="toolbar"><button id="add-folder" class="primary">AÃ±adir carpeta</button><button id="sync">Respaldar ahora</button><input id="manual-folder-path" class="folder-path-input" placeholder="Ruta manual (si no abre el selector)" autocomplete="off"><button id="add-folder-path">Usar ruta</button></div><div id="folders" class="folders"></div></div>
+<div class="card"><h2>Carpetas en Cloud</h2><p>AquÃ­ aparecen las carpetas que ya tienen respaldo. Al conectar el mismo disco en otra PC, el cliente puede volver a asociarlas por su identificador portÃ¡til.</p><div id="remote-folders" class="remote-folders"><span class="status">Inicia sesiÃ³n para consultar Cloud.</span></div></div><div class="card"><h2>Estado</h2><div id="status" class="status">Esperandoâ€¦</div><div class="stats"><div class="stat"><b id="checked">0</b><span>revisados</span></div><div class="stat"><b id="uploaded">0</b><span>nuevas subidas</span></div><div class="stat"><b id="unchanged">0</b><span>sin cambios</span></div><div class="stat"><b id="pending">0</b><span>pendientes</span></div></div></div>
+<div class="card"><h2>Bloqueos manuales de Cloud</h2><p>Si borras un archivo desde Cloud, queda bloqueado para que una copia local existente no lo restaure sola. DesbloquÃ©alo aquÃ­ sÃ³lo si quieres permitirlo de nuevo.</p><div id="tombstones" class="tombstones"><span class="status">No hay bloqueos.</span></div></div>
+</section>
+</main>
+<script>
+const $=(id)=>document.getElementById(id);
+let selectedFolder="";
+let lastStatus=null;
+let fileNotice="";
+let fileNoticeError=false;
+function setFileNotice(text,error=false){fileNotice=text;fileNoticeError=error;if(lastStatus)render(lastStatus);else{$("status").textContent=text;$("status").className="status"+(error?" error":"")}}
+async function api(path,options={}){const r=await fetch(path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||'La operaciÃ³n fallÃ³.');return b}
+function msg(text,error=false){$('login-message').textContent=text||'';$('login-message').className='status'+(error?' error':'')}
+function renderFolder(folder){
+  const progress=Math.max(0,Math.min(100,Number(folder.progress)||0));
+  const status=String(folder.status||'Esperando');
+  const statusClass=status==='Error'?' error':'';
+  const selectedClass=selectedFolder===folder.path?' selected':'';
+const folderFileCount=Number(folder.totalFiles)||0;
+  const folderCountLabel=folder.status==='Revisando'&&folderFileCount===0?'Disco: contando archivosâ€¦':'Disco: '+folderFileCount.toLocaleString('es-MX')+' archivos';
+  const cloudCountLabel=folder.cloudCountError?'<span class="count-error">Cloud: error - '+escapeHtml(folder.cloudCountError)+'</span>':folder.cloudFiles===null||folder.cloudFiles===undefined?'Cloud: consultandoâ€¦':'Cloud: '+Number(folder.cloudFiles).toLocaleString('es-MX')+' archivos';
+  const current=folder.currentFile?'<div class="folder-current">'+escapeHtml(folder.currentFile)+(folder.status==='Subiendo'?' Â· '+(Number(folder.currentProgress)||0)+'%':' Â· Leyendo')+'</div>':'';
+  const selectLabel=selectedFolder===folder.path?'Seleccionada':'Seleccionar';
+  return '<div class="folder'+selectedClass+'"><div class="folder-main"><div class="folder-top"><div class="folder-title"><strong>'+escapeHtml(folder.name||folder.path)+'</strong><code>'+escapeHtml(folder.path)+'</code></div><span class="folder-status'+statusClass+'">'+escapeHtml(status)+'</span></div><div class="folder-progress"><span style="width:'+progress+'%"></span></div><div class="folder-meta"><span>'+folderCountLabel+'</span><span>'+cloudCountLabel+'</span><span>'+(folder.markerWritten?'ID portÃ¡til activo':'ID portÃ¡til no guardado')+'</span><span>'+Number(folder.processed||0)+' revisados</span><span>'+Number(folder.uploaded||0)+' nuevas subidas</span><span>'+Number(folder.pending||0)+' pendientes</span><span>'+progress+'%</span></div>'+current+'</div><div class="folder-actions"><button data-select="'+escapeAttr(folder.path)+'">'+selectLabel+'</button><button data-file="'+escapeAttr(folder.path)+'">Archivo</button><button data-remove="'+escapeAttr(folder.path)+'">Quitar</button></div></div>';
+}
+function renderRemoteFolder(folder, status) {
+  const local = (status.folders || []).find((item) => folder.folder_id ? item.folderId === folder.folder_id : item.cloudName === folder.cloud_name);
+  const connected = Boolean(local);
+  const knownPath = connected ? local.path : folder.local_path;
+  const stateText = connected ? '<span class="connected">Conectada en este equipo</span>' : folder.has_cloud_data ? '<span class="folder-status">Respaldada Â· selecciona su carpeta local</span>' : '<span class="folder-status">Registrada, aÃºn sin archivos detectados</span>';
+  const action = connected ? '' : '<button data-match-cloud="'+escapeAttr(folder.cloud_name)+'">Elegir carpeta local</button>';
+  return '<div class="remote-folder"><div class="remote-folder-main"><strong>'+escapeHtml(folder.folder_name || folder.cloud_name)+'</strong><code>Cloud: '+escapeHtml(folder.cloud_name)+'</code><small>'+stateText+(knownPath ? '<br>Ãšltima ruta local: '+escapeHtml(knownPath) : '<br>Sin ruta local registrada en este equipo')+(folder.host_name ? '<br>Ãšltimo equipo: '+escapeHtml(folder.host_name) : '')+'</small></div><div class="remote-folder-actions">'+action+'</div></div>';
+}
+function render(s){
+  lastStatus=s;
+  $('login').hidden=s.authenticated;$('app').hidden=!s.authenticated;$('logout').hidden=!s.authenticated;
+  $('folders').innerHTML=(s.folders||[]).map(renderFolder).join('')||'<span class="status">Selecciona una carpeta para comenzar.</span>';
+  $('remote-folders').innerHTML=s.remoteFoldersError?'<span class="status error">'+escapeHtml(s.remoteFoldersError)+'</span>':((s.remoteFolders||[]).map((folder)=>renderRemoteFolder(folder,s)).join('')||'<span class="status">No hay carpetas registradas en Cloud todavÃ­a.</span>');
+  $('checked').textContent=s.checked||0;$('uploaded').textContent=s.uploaded||0;$('unchanged').textContent=s.unchanged||0;$('pending').textContent=s.pending||0;
+  const folderList=s.folders||[];
+  const activeFolder=String(s.currentFolderName||((folderList.filter(f=>f.status==='Revisando').sort((a,b)=>Number(b.checked||0)-Number(a.checked||0))[0]||{}).name)||'');
+  const activeFile=String(s.currentFile||((folderList.find(f=>f.currentFile)||{}).currentFile)||'');
+  let runningText=s.stage||'Respaldando '+(s.current||'archivos');
+  if(s.running&&activeFolder){
+    if(runningText==='Leyendo carpetas'||runningText.startsWith('Leyendo carpeta:')) runningText='Leyendo: '+activeFolder;
+    else if(!runningText.includes(activeFolder)) runningText+=' | Carpeta: '+activeFolder;
+    if(activeFile&&!runningText.includes(activeFile)) runningText+=' | Archivo: '+activeFile;
+  }
+  let text=s.running?runningText+'â€¦':s.lastSuccess?'Activo. Ãšltimo respaldo: '+new Date(s.lastSuccess).toLocaleString():'Esperando el primer respaldo.';
+  if(s.lastError)text+=' '+s.lastError;
+  if(fileNotice)text+=' Â· '+fileNotice;
+  $('status').textContent=text;$('status').className='status'+(s.lastError||fileNoticeError?' error':'');
+  const rows=s.tombstones||[];
+  $('tombstones').innerHTML=rows.length?rows.map((row)=>'<div class="tombstone"><code>'+escapeHtml(row.relative_path)+'</code><button data-unblock="'+escapeAttr(row.relative_path)+'">Desbloquear</button></div>').join(''):'<span class="status">No hay bloqueos.</span>';
+}
+function escapeHtml(v){return String(v).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function escapeAttr(v){return escapeHtml(v)}
+async function refresh(){try{render(await api('/api/status'))}catch(e){msg(e.message,true)}}
+$('login-form').addEventListener('submit',async(e)=>{e.preventDefault();msg('Iniciando sesiÃ³nâ€¦');try{await api('/api/login',{method:'POST',body:JSON.stringify({email:$('email').value,password:$('password').value})});$('password').value='';await refresh()}catch(err){msg(err.message,true)}});
+$('add-folder-path').addEventListener('click',async()=>{const input=$('manual-folder-path');const value=input.value.trim();if(!value){alert('Escribe o pega la ruta de la carpeta.');return}const button=$('add-folder-path');button.disabled=true;try{await api('/api/select-folder-path',{method:'POST',body:JSON.stringify({path:value})});input.value='';await refresh();await api('/api/sync',{method:'POST'})}catch(e){alert(e.message)}finally{button.disabled=false}});
+$('add-folder').addEventListener('click',async()=>{const button=$('add-folder');button.disabled=true;button.textContent='Abriendo selectorâ€¦';try{await api('/api/select-folder',{method:'POST'});await refresh();await api('/api/sync',{method:'POST'})}catch(e){alert(e.message)}finally{button.disabled=false;button.textContent='AÃ±adir carpeta'}});
+$('sync').addEventListener('click',async()=>{try{await api('/api/sync',{method:'POST'});await refresh()}catch(e){alert(e.message)}});
+$('logout').addEventListener('click',async()=>{await api('/api/logout',{method:'POST'});await refresh()});
+document.addEventListener('click',async(e)=>{const remote=e.target.closest('[data-match-cloud]');if(remote){const button=remote;button.disabled=true;button.textContent='Abriendoâ€¦';try{await api('/api/select-folder',{method:'POST'});await refresh();await api('/api/sync',{method:'POST'})}catch(err){alert(err.message)}finally{button.disabled=false;button.textContent='Elegir carpeta local'}return}const file=e.target.closest('[data-file]');if(file){const root=file.dataset.file;file.disabled=true;file.textContent='Abriendoâ€¦';setFileNotice('Abriendo el explorador de archivos en '+root);try{const result=await api('/api/select-file',{method:'POST',body:JSON.stringify({root})});if(result.canceled){setFileNotice('SelecciÃ³n cancelada.');return}if(result.unchanged){setFileNotice('Archivo sin cambios pendientes: '+result.relative);return}if(result.queued){setFileNotice('Respaldo prioritario solicitado: '+result.relative);await refresh()}}catch(err){setFileNotice(err.message,true)}finally{file.disabled=false;file.textContent='Archivo'}return}const select=e.target.closest('[data-select]');if(select){selectedFolder=select.dataset.select;if(lastStatus)render(lastStatus);$('status').textContent='Carpeta seleccionada: '+selectedFolder;return}const remove=e.target.closest('[data-remove]');if(remove){await api('/api/remove-folder',{method:'POST',body:JSON.stringify({path:remove.dataset.remove})});if(selectedFolder===remove.dataset.remove)selectedFolder='';await refresh()}const unblock=e.target.closest('[data-unblock]');if(unblock&&confirm('Â¿Permitir que esta ruta vuelva a respaldarse?')){await api('/api/unblock',{method:'POST',body:JSON.stringify({relative_path:unblock.dataset.unblock})});await refresh();}});
+refresh();setInterval(refresh,5000);
+</script>
+</body>
+</html>
+
+
+
+
