@@ -9910,19 +9910,34 @@ body.beat-admin-mode .beat-admin {
   gap: 16px;
 }
 
+.hr-universal-footer__brand-logos {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 48px;
+}
+
 .hr-universal-footer__logo-link,
 .hr-universal-footer__group a {
   text-decoration: none;
 }
 
 .hr-universal-footer__logo-link {
-  display: block;
+  display: flex;
+  align-items: center;
 }
 
 .hr-universal-footer__logo {
   display: block;
   width: 80px;
   height: auto;
+}
+
+.hr-universal-footer__logo--mysauth {
+  width: 112px;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
 }
 
 .hr-universal-footer__signature,

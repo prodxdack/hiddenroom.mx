@@ -3428,9 +3428,14 @@ function initGlobalFooter() {
   footer.setAttribute("aria-label", "Pie de página");
   footer.innerHTML = `
     <div class="hr-universal-footer__brand">
-      <a class="hr-universal-footer__logo-link" href="/" aria-label="Hidden Room, inicio">
-        <img class="hr-universal-footer__logo" src="/assets/img/white_logo.webp" alt="Hidden Room">
-      </a>
+      <div class="hr-universal-footer__brand-logos">
+        <a class="hr-universal-footer__logo-link" href="/" aria-label="Hidden Room, inicio">
+          <img class="hr-universal-footer__logo" src="/assets/img/white_logo.webp" alt="Hidden Room">
+        </a>
+        <a class="hr-universal-footer__logo-link hr-universal-footer__logo-link--mysauth" href="https://mysauth.com/" target="_blank" rel="noopener noreferrer" aria-label="MysAuth, sitio principal">
+          <img class="hr-universal-footer__logo hr-universal-footer__logo--mysauth" src="/assets/img/mysauth-logo.webp" alt="MysAuth">
+        </a>
+      </div>
       <p class="hr-universal-footer__signature">Hidden Room / Grupo Mysauth</p>
     </div>
 
