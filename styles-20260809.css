@@ -99,7 +99,7 @@
   /* — Typography — */
   --font-mono:    var(--font-body);
   --font-display: 'Unbounded', sans-serif;
-  --font-body:    'Space Grotesk', sans-serif;
+  --font-body:    'Inter', sans-serif;
 
   --text-xs:      9px;
   --text-sm:      10px;
