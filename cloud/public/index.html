@@ -1,16 +1,16 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MysAuth Cloud</title>
-  <link rel="stylesheet" href="/cloud.css?v=20260916-cloud-beat-access-v1" />
+  <link rel="stylesheet" href="/cloud.css?v=20261020-mysauth-logo-v1" />
 </head>
 <body>
   <main class="cloud-shell">
     <section class="cloud-login" id="login-view" hidden>
       <div class="brand-block">
-        <p class="eyebrow">MysAuth OS</p>
+        <div class="cloud-brand" aria-label="MysAuth Cloud"><img class="cloud-brand-logo" src="https://hiddenroom.mx/assets/img/mysauth-logo.webp" alt="MysAuth" /><span>Cloud</span></div>
         <h1>MysAuth Cloud</h1>
         <p>Acceso privado para administrar archivos de Hidden Room.</p>
       </div>
@@ -25,6 +25,7 @@
     <section class="cloud-app" id="app-view" hidden>
       <header class="topbar">
         <div>
+          <div class="cloud-brand" aria-label="MysAuth Cloud"><img class="cloud-brand-logo" src="https://hiddenroom.mx/assets/img/mysauth-logo.webp" alt="MysAuth" /><span>Cloud</span></div>
           <p class="eyebrow">Hidden Room</p>
           <h1>MysAuth Cloud</h1>
         </div>
@@ -51,6 +52,7 @@
               <th>Tipo</th>
               <th>Tamano</th>
               <th>Modificado</th>
+              <th>Privacidad / enlace</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -59,6 +61,30 @@
       </section>
     </section>
   </main>
-  <script type="module" src="/cloud.js?v=20260718-multi-upload"></script>
+    <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-dialog-title">
+      <form method="dialog" class="share-dialog-card">
+        <header class="share-dialog-header">
+          <div>
+            <p class="eyebrow">Compartir archivo</p>
+            <h2 id="share-dialog-title">Privacidad del archivo</h2>
+            <p class="share-dialog-lead">Elige quién puede abrir este archivo desde un enlace.</p>
+          </div>
+          <button type="button" class="dialog-close" id="share-dialog-close" aria-label="Cerrar">×</button>
+        </header>
+        <fieldset class="share-options" id="share-options">
+          <legend class="sr-only">Privacidad</legend>
+          <label class="share-option"><input type="radio" name="share-privacy" value="private" /><span><strong>Privado</strong><small>Solo usuarios autorizados dentro de Cloud.</small></span></label>
+          <label class="share-option"><input type="radio" name="share-privacy" value="public" /><span><strong>Público</strong><small>El enlace puede indexarse y aparecer en buscadores.</small></span></label>
+          <label class="share-option"><input type="radio" name="share-privacy" value="link" /><span><strong>Cualquiera con el enlace</strong><small>Acceso para quien tenga el enlace, sin indexarlo.</small></span></label>
+        </fieldset>
+        <section class="share-link-panel" id="share-link-panel" hidden>
+          <label for="share-link-input">Enlace de preview</label>
+          <div class="share-link-row"><input id="share-link-input" type="text" readonly /><button type="button" id="share-copy-button" class="primary">Copiar enlace</button></div>
+        </section>
+        <footer class="share-dialog-footer"><button type="button" id="share-dialog-cancel">Cancelar</button><button type="button" class="primary" id="share-dialog-save">Guardar privacidad</button></footer>
+      </form>
+    </dialog>
+  <script type="module" src="/cloud.js?v=20261019-cloud-sharing-modal-v1"></script>
 </body>
 </html>
+
