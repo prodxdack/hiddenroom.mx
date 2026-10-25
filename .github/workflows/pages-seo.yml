@@ -1,0 +1,46 @@
+name: Build and deploy production Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://hiddenroom.mx
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout production repository
+        uses: actions/checkout@v4
+      - name: Assemble production artifact
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pages-site"
+          rsync -a --exclude '.git' --exclude '.github' --exclude 'node_modules' --exclude 'scripts' --exclude 'tools' --exclude 'ops' --exclude 'cloud/backup-client' --exclude 'cloud/debian-runtime' --exclude 'media/articles/sitemap.xml' ./ "$RUNNER_TEMP/pages-site/"
+          test "$SITE_URL" = "https://hiddenroom.mx"
+          test "$(tr -d '\r\n' < "$RUNNER_TEMP/pages-site/CNAME")" = "hiddenroom.mx"
+          test -f "$RUNNER_TEMP/pages-site/robots.txt"
+          test -f "$RUNNER_TEMP/pages-site/sitemap.xml"
+      - name: Upload production Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/pages-site
+      - name: Deploy production Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
