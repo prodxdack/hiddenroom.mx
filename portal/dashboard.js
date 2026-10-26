@@ -10598,6 +10598,13 @@ async function prepareDownloadValues(form, values) {
       showToast("El usuario no tiene user_id operativo asignado.", "error");
       return false;
     }
+    const selectedExistingFile = source?.kind === 'file'
+      && normalizeCloudPath(source.path) === normalizeCloudPath(targetRoot);
+    if (selectedExistingFile) {
+      values.storage_path = buildCloudDownloadUrl(source.path, source.name);
+      setDownloadUploadProgress(form, 78, 'Usando archivo existente');
+      return true;
+    }
     setDownloadUploadProgress(form, 8, 'Validando fuente');
     if (source?.kind === 'folder' || localFolderFiles.length) {
       const folderName = source?.kind === 'folder' ? source.name : localFolderName;
