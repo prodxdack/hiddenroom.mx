@@ -10598,12 +10598,25 @@ async function prepareDownloadValues(form, values) {
       showToast("El usuario no tiene user_id operativo asignado.", "error");
       return false;
     }
-    const selectedExistingFile = source?.kind === 'file'
-      && normalizeCloudPath(source.path) === normalizeCloudPath(targetRoot);
-    if (selectedExistingFile) {
-      values.storage_path = buildCloudDownloadUrl(source.path, source.name);
-      setDownloadUploadProgress(form, 78, 'Usando archivo existente');
-      return true;
+    if (source?.kind === 'file') {
+      let existingTargetFile = null;
+      try {
+        const targetListing = await listCloudFiles(targetRoot);
+        existingTargetFile = targetListing.files.find((item) => item.name === source.name) || null;
+      } catch (error) {
+        console.info('[HR] existing Cloud target lookup:', error?.message ?? error);
+      }
+
+      if (existingTargetFile) {
+        const sourceSize = Number(source.size || 0);
+        const targetSize = Number(existingTargetFile.size || 0);
+        if (!sourceSize || !targetSize || sourceSize === targetSize) {
+          values.storage_path = buildCloudDownloadUrl(targetRoot, source.name);
+          setDownloadUploadProgress(form, 78, 'Usando archivo existente');
+          return true;
+        }
+        throw new Error('Ya existe un archivo con ese nombre, pero su tamaño es diferente. Cambia el nombre o selecciona el archivo correcto.');
+      }
     }
     setDownloadUploadProgress(form, 8, 'Validando fuente');
     if (source?.kind === 'folder' || localFolderFiles.length) {
