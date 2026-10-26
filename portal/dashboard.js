@@ -9387,6 +9387,7 @@ function buildMembershipRows(memberships = [], sessions = [], transactions = [],
       const payments = membershipPayments.filter((tx) => rowMatchesMembership(tx, membership));
       let paymentIndex = 0;
       const availableCredits = [];
+      const membershipRowStart = rows.length;
 
       weeks.forEach((week) => {
         const weekSessions = sessionsForMembershipWeek(week, membershipSessionRows);
@@ -9437,6 +9438,7 @@ function buildMembershipRows(memberships = [], sessions = [], transactions = [],
           else estado = 'ATRASADO';
 
           saldo = availableCredit > 0 ? availableCredit : null;
+          saldo_tipo = saldo > 0 ? 'credito' : null;
         } else if (compareDateOnly(week.week_end, today) < 0) {
           estado = 'ATRASADO';
           saldo = availableCredit - weekObligation;
@@ -9467,9 +9469,26 @@ function buildMembershipRows(memberships = [], sessions = [], transactions = [],
           fecha_de_saldo: fechaSaldo,
           saldo,
           saldo_tipo,
+          fecha_de_credito: saldo > 0 ? (availableCredits.at(-1)?.date ?? null) : null,
           notas: membershipSessionNotes(weekSessions),
         });
       });
+
+      while (paymentIndex < payments.length) {
+        availableCredits.push({
+          amount: payments[paymentIndex].amount,
+          date: payments[paymentIndex].date,
+        });
+        paymentIndex += 1;
+      }
+
+      const trailingCredit = availableCredits.reduce((total, credit) => total + credit.amount, 0);
+      const latestMembershipRow = rows.slice(membershipRowStart).at(-1);
+      if (latestMembershipRow && trailingCredit > 0) {
+        latestMembershipRow.saldo = trailingCredit;
+        latestMembershipRow.saldo_tipo = 'credito';
+        latestMembershipRow.fecha_de_credito = availableCredits.at(-1)?.date ?? null;
+      }
     });
 
   return applyMembershipComputedDeliveries(applyMembershipMaterialDeliveries(rows, materialDeliveries));
@@ -9532,7 +9551,10 @@ function formatMembershipRowBalance(row) {
       ? `Pendiente por pagar ${money(Math.abs(saldo))}`
       : `Adeudo ${money(Math.abs(saldo))}`;
   }
-  return `Crédito ${money(saldo)}`;
+  const creditDate = formatDisplayDateOnly(row.fecha_de_credito);
+  return creditDate && creditDate !== '-'
+    ? `Crédito a favor ${money(saldo)} (${creditDate})`
+    : `Crédito a favor ${money(saldo)}`;
 }
 
 function membershipCurrentCreditValue(rows = []) {
@@ -9608,10 +9630,14 @@ function membershipBalanceParts(rows = []) {
 }
 
 function membershipOverdueBalanceSummary(rows = []) {
-  const { overdue, credit } = membershipBalanceParts(rows);
+  const { overdue } = membershipBalanceParts(rows);
   if (overdue < 0) return money(Math.abs(overdue));
-  if (credit > 0) return `Crédito ${money(credit)}`;
   return 'Sin saldo vencido';
+}
+
+function membershipCreditBalanceSummary(rows = []) {
+  const { credit } = membershipBalanceParts(rows);
+  return credit > 0 ? money(credit) : 'Sin saldo a favor';
 }
 
 function membershipPendingBalanceSummary(rows = []) {
@@ -9621,6 +9647,7 @@ function membershipPendingBalanceSummary(rows = []) {
 
 function membershipSummaryTone(key, value) {
   const normalized = normalizeCatalogValue(value);
+  if (key === 'credit-balance') return normalized === 'SIN SALDO A FAVOR' ? 'neutral' : 'success';
   if (key === 'status') {
     if (normalized.includes('CANCELADA POR INCUMPLIMIENTOS')) return 'danger';
     if (normalized === 'CON ADEUDO') return 'danger';
@@ -9926,6 +9953,7 @@ function renderMembershipSummary(rows = []) {
     { key: 'status', label: 'ESTADO DE MEMBRESÍA:', value: membershipDisplayStatus(rows) },
     { key: 'overdue-balance', label: 'SALDO VENCIDO:', value: membershipOverdueBalanceSummary(rows) },
     { key: 'pending-balance', label: 'SALDO PENDIENTE:', value: membershipPendingBalanceSummary(rows) },
+    { key: 'credit-balance', label: 'SALDO A FAVOR:', value: membershipCreditBalanceSummary(rows) },
     { key: 'next-session', label: 'PRÓXIMA SESIÓN:', value: upcoming ? formatDisplayDateOnly(upcoming.fecha_de_sesion || upcoming.fecha_esperada) : 'Sin próxima sesión' },
     { key: 'next-delivery', label: 'PRÓXIMA ENTREGA:', value: nextMembershipDeliveryText(rows) },
     { key: 'expired', label: 'MEMBRESÍAS VENCIDAS:', value: expiredText },
