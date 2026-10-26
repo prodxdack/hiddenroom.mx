@@ -1,6 +1,13 @@
 const SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+const SUPABASE_AUTH_OPTIONS = {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+};
 
 async function getSupabaseClient() {
   if (window.HiddenRoomSupabase?.getClient) {
@@ -14,7 +21,7 @@ async function getSupabaseClient() {
   if (!window.__hiddenRoomSupabaseClientPromise) {
     window.__hiddenRoomSupabaseClientPromise = import(SUPABASE_CDN).then(({ createClient }) => {
       window.__hiddenRoomSupabaseClient = window.__hiddenRoomSupabaseClient
-        || createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        || createClient(SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_AUTH_OPTIONS);
       return window.__hiddenRoomSupabaseClient;
     });
   }

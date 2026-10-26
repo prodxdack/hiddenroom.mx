@@ -4,6 +4,15 @@ const GA_MEASUREMENT_ID = "G-VNHC1Z3FXZ";
 const HR_SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
 const HR_SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const HR_SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+// Keep the auth session across page changes and deployments.
+// The default storage key is intentional so existing sessions remain valid.
+const HR_SUPABASE_AUTH_OPTIONS = {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+};
 const ECOSYSTEM_LINKS = [
   ["academia", "/academia/", "Academia"],
   ["games", "/minijuegos/", "Minijuegos"],
@@ -731,7 +740,7 @@ function getHiddenRoomSupabaseClient() {
   if (!window.__hiddenRoomSupabaseClientPromise) {
     window.__hiddenRoomSupabaseClientPromise = import(HR_SUPABASE_CDN).then(({ createClient }) => {
       window.__hiddenRoomSupabaseClient = window.__hiddenRoomSupabaseClient
-        || createClient(HR_SUPABASE_URL, HR_SUPABASE_ANON_KEY);
+        || createClient(HR_SUPABASE_URL, HR_SUPABASE_ANON_KEY, HR_SUPABASE_AUTH_OPTIONS);
       return window.__hiddenRoomSupabaseClient;
     });
   }

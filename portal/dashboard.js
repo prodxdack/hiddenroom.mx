@@ -28,6 +28,13 @@ import { cloudSourceToFile, createCloudSourcePicker, joinCloudPath, walkCloudSou
 const SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+const SUPABASE_AUTH_OPTIONS = {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+};
 
 async function getSupabaseClient() {
   if (window.HiddenRoomSupabase?.getClient) {
@@ -41,7 +48,7 @@ async function getSupabaseClient() {
   if (!window.__hiddenRoomSupabaseClientPromise) {
     window.__hiddenRoomSupabaseClientPromise = import(SUPABASE_CDN).then(({ createClient }) => {
       window.__hiddenRoomSupabaseClient = window.__hiddenRoomSupabaseClient
-        || createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        || createClient(SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_AUTH_OPTIONS);
       return window.__hiddenRoomSupabaseClient;
     });
   }
@@ -1962,7 +1969,19 @@ async function syncLocalStorageRecords() {
  */
 async function bootstrapSession() {
   try {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const { data: { session: storedSession }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.warn('[HR] bootstrapSession: could not read stored session', sessionError.message);
+      return null;
+    }
+
+    if (!storedSession?.user) return null;
+
+    const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
+    if (userError) {
+      console.warn('[HR] bootstrapSession: using persisted session while auth is recovering', userError.message);
+    }
+    const authUser = verifiedUser || storedSession.user;
 
     if (!authUser) return null;
 
@@ -2164,15 +2183,13 @@ async function handleRefreshSession() {
   try {
     const { data, error } = await supabase.auth.refreshSession();
     if (error || !data?.session) {
-      await supabase.auth.signOut();
-      window.location.href = './';
+      markSessionStale(error?.message || 'No se pudo renovar la sesión.');
       return;
     }
 
     const session = await bootstrapSession();
     if (!session) {
-      await supabase.auth.signOut();
-      window.location.href = './';
+      markSessionStale('La sesión se renovó, pero el perfil aún no está disponible.');
       return;
     }
 
@@ -2189,8 +2206,7 @@ async function handleRefreshSession() {
     navigate(state.activeSection);
   } catch (err) {
     console.error('[HR] refresh session:', err);
-    await supabase.auth.signOut();
-    window.location.href = './';
+    markSessionStale(err?.message || 'No se pudo renovar la sesión.');
   }
 }
 
