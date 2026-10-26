@@ -9380,71 +9380,84 @@ function buildMembershipRows(memberships = [], sessions = [], transactions = [],
         const sessionDate = formatDateOnly(session.session_date);
         return !latest || compareDateOnly(sessionDate, latest) > 0 ? sessionDate : latest;
       }, null);
-      const generationEndDate = latestSessionDate && compareDateOnly(latestSessionDate, today) > 0
-        ? latestSessionDate
-        : today;
-      const weeks = generateMembershipWeeks(membership, generationEndDate);
       const payments = membershipPayments.filter((tx) => rowMatchesMembership(tx, membership));
-      let paymentIndex = 0;
-      const availableCredits = [];
-      const membershipRowStart = rows.length;
+      const latestPaymentDate = payments.reduce((latest, payment) => {
+        return !latest || compareDateOnly(payment.date, latest) > 0 ? payment.date : latest;
+      }, null);
+      const paymentProjectionEndDate = latestPaymentDate ? addDaysToDateOnly(latestPaymentDate, 7) : null;
+      const generationEndDate = [today, latestSessionDate, paymentProjectionEndDate]
+        .filter(Boolean)
+        .sort(compareDateOnly)
+        .at(-1);
+      const weeks = generateMembershipWeeks(membership, generationEndDate);
+      const weekStates = weeks.map((week) => ({
+        week,
+        fundedAmount: 0,
+        fundingDates: [],
+        carryoverAmount: 0,
+      }));
 
-      weeks.forEach((week) => {
+      const allocatePaymentToWeek = (state, amount, paymentDate) => {
+        const obligation = membershipWeekObligation(state.week, []);
+        const remainingObligation = Math.max(0, obligation - state.fundedAmount);
+        const applied = Math.min(amount, remainingObligation);
+        if (applied > 0) {
+          state.fundedAmount += applied;
+          state.fundingDates.push({ amount: applied, date: paymentDate });
+        }
+        return amount - applied;
+      };
+
+      payments.forEach((payment) => {
+        let remainingPayment = payment.amount;
+
+        weekStates.forEach((state) => {
+          if (remainingPayment <= 0) return;
+          if (compareDateOnly(state.week.fecha_esperada, payment.date) > 0) return;
+          remainingPayment = allocatePaymentToWeek(state, remainingPayment, payment.date);
+        });
+
+        weekStates.forEach((state) => {
+          if (remainingPayment <= 0) return;
+          remainingPayment = allocatePaymentToWeek(state, remainingPayment, payment.date);
+        });
+
+        if (remainingPayment > 0 && weekStates.length) {
+          weekStates.at(-1).carryoverAmount += remainingPayment;
+        }
+      });
+
+      weekStates.forEach((state) => {
+        const { week, fundedAmount, fundingDates, carryoverAmount } = state;
         const weekSessions = sessionsForMembershipWeek(week, membershipSessionRows);
         const firstSession = weekSessions[0] ?? null;
         const usedSessionDates = [...new Set(weekSessions.map((session) => formatDateOnly(session.session_date)))];
         const weekObligation = membershipWeekObligation(week, weekSessions);
-
-        while (paymentIndex < payments.length && compareDateOnly(payments[paymentIndex].date, week.fecha_esperada) <= 0) {
-          availableCredits.push({
-            amount: payments[paymentIndex].amount,
-            date: payments[paymentIndex].date,
-          });
-          paymentIndex += 1;
-        }
-
-        let remainingObligation = weekObligation;
-        let fechaSaldo = null;
-        const consumeAvailableCredit = () => {
-          while (remainingObligation > 0 && availableCredits.length) {
-            const credit = availableCredits[0];
-            const consumed = Math.min(credit.amount, remainingObligation);
-            credit.amount -= consumed;
-            remainingObligation -= consumed;
-            if (consumed > 0) fechaSaldo = credit.date;
-            if (credit.amount <= 0) availableCredits.shift();
-          }
-        };
-
-        consumeAvailableCredit();
-        while (remainingObligation > 0 && paymentIndex < payments.length) {
-          availableCredits.push({
-            amount: payments[paymentIndex].amount,
-            date: payments[paymentIndex].date,
-          });
-          paymentIndex += 1;
-          consumeAvailableCredit();
-        }
-
-        const covered = remainingObligation <= 0;
-        const availableCredit = availableCredits.reduce((total, credit) => total + credit.amount, 0);
+        const completionDate = fundingDates.at(-1)?.date ?? null;
+        const covered = fundedAmount >= weekObligation;
+        const remainingObligation = Math.max(0, weekObligation - fundedAmount);
         let estado = 'PENDIENTE';
         let saldo = null;
         let saldo_tipo = null;
 
         if (covered) {
-          if (fechaSaldo < week.fecha_esperada) estado = 'ADELANTADO';
-          else if (compareDateOnly(fechaSaldo, week.week_end) <= 0) estado = 'CORRIENTE';
+          if (completionDate && compareDateOnly(completionDate, week.fecha_esperada) < 0) estado = 'ADELANTADO';
+          else if (completionDate && compareDateOnly(completionDate, week.week_end) <= 0) estado = 'CORRIENTE';
           else estado = 'ATRASADO';
 
-          saldo = availableCredit > 0 ? availableCredit : null;
-          saldo_tipo = saldo > 0 ? 'credito' : null;
+          if (estado === 'ADELANTADO') {
+            saldo = fundedAmount;
+            saldo_tipo = 'credito';
+          } else if (carryoverAmount > 0) {
+            saldo = carryoverAmount;
+            saldo_tipo = 'credito';
+          }
         } else if (compareDateOnly(week.week_end, today) < 0) {
           estado = 'ATRASADO';
-          saldo = availableCredit - weekObligation;
+          saldo = -remainingObligation;
           saldo_tipo = 'adeudo';
-        } else if (availableCredit < weekObligation) {
-          saldo = availableCredit - weekObligation;
+        } else if (remainingObligation > 0) {
+          saldo = -remainingObligation;
           saldo_tipo = 'pendiente';
         }
 
@@ -9466,29 +9479,12 @@ function buildMembershipRows(memberships = [], sessions = [], transactions = [],
           sesiones_usadas_lista: usedSessionDates,
           estado,
           estado_operativo: String(membership.status ?? 'active').toUpperCase(),
-          fecha_de_saldo: fechaSaldo,
+          fecha_de_saldo: completionDate,
           saldo,
           saldo_tipo,
-          fecha_de_credito: saldo > 0 ? (availableCredits.at(-1)?.date ?? null) : null,
           notas: membershipSessionNotes(weekSessions),
         });
       });
-
-      while (paymentIndex < payments.length) {
-        availableCredits.push({
-          amount: payments[paymentIndex].amount,
-          date: payments[paymentIndex].date,
-        });
-        paymentIndex += 1;
-      }
-
-      const trailingCredit = availableCredits.reduce((total, credit) => total + credit.amount, 0);
-      const latestMembershipRow = rows.slice(membershipRowStart).at(-1);
-      if (latestMembershipRow && trailingCredit > 0) {
-        latestMembershipRow.saldo = trailingCredit;
-        latestMembershipRow.saldo_tipo = 'credito';
-        latestMembershipRow.fecha_de_credito = availableCredits.at(-1)?.date ?? null;
-      }
     });
 
   return applyMembershipComputedDeliveries(applyMembershipMaterialDeliveries(rows, materialDeliveries));
@@ -9551,24 +9547,14 @@ function formatMembershipRowBalance(row) {
       ? `Pendiente por pagar ${money(Math.abs(saldo))}`
       : `Adeudo ${money(Math.abs(saldo))}`;
   }
-  const creditDate = formatDisplayDateOnly(row.fecha_de_credito);
-  return creditDate && creditDate !== '-'
-    ? `Crédito a favor ${money(saldo)} (${creditDate})`
-    : `Crédito a favor ${money(saldo)}`;
+  return `Crédito ${money(saldo)}`;
 }
 
 function membershipCurrentCreditValue(rows = []) {
-  const latestByMembership = new Map();
-
-  rows.forEach((row) => {
-    const key = String(row.membership_id ?? `legacy-${row.user_id ?? ''}`);
-    const current = latestByMembership.get(key);
-    if (!current || Number(row.semana ?? 0) >= Number(current.semana ?? 0)) {
-      latestByMembership.set(key, row);
-    }
-  });
-
-  return [...latestByMembership.values()]
+  const today = todayDateInputValue();
+  if (rows.some((row) => row.saldo_tipo === 'adeudo')) return 0;
+  return rows
+    .filter((row) => row.saldo_tipo === 'credito' && compareDateOnly(row.fecha_esperada, today) > 0)
     .reduce((sum, row) => sum + Math.max(0, Number(row.saldo ?? 0)), 0);
 }
 
@@ -9630,14 +9616,10 @@ function membershipBalanceParts(rows = []) {
 }
 
 function membershipOverdueBalanceSummary(rows = []) {
-  const { overdue } = membershipBalanceParts(rows);
+  const { overdue, credit } = membershipBalanceParts(rows);
   if (overdue < 0) return money(Math.abs(overdue));
+  if (credit > 0) return `Crédito ${money(credit)}`;
   return 'Sin saldo vencido';
-}
-
-function membershipCreditBalanceSummary(rows = []) {
-  const { credit } = membershipBalanceParts(rows);
-  return credit > 0 ? money(credit) : 'Sin saldo a favor';
 }
 
 function membershipPendingBalanceSummary(rows = []) {
@@ -9647,7 +9629,6 @@ function membershipPendingBalanceSummary(rows = []) {
 
 function membershipSummaryTone(key, value) {
   const normalized = normalizeCatalogValue(value);
-  if (key === 'credit-balance') return normalized === 'SIN SALDO A FAVOR' ? 'neutral' : 'success';
   if (key === 'status') {
     if (normalized.includes('CANCELADA POR INCUMPLIMIENTOS')) return 'danger';
     if (normalized === 'CON ADEUDO') return 'danger';
@@ -9953,7 +9934,6 @@ function renderMembershipSummary(rows = []) {
     { key: 'status', label: 'ESTADO DE MEMBRESÍA:', value: membershipDisplayStatus(rows) },
     { key: 'overdue-balance', label: 'SALDO VENCIDO:', value: membershipOverdueBalanceSummary(rows) },
     { key: 'pending-balance', label: 'SALDO PENDIENTE:', value: membershipPendingBalanceSummary(rows) },
-    { key: 'credit-balance', label: 'SALDO A FAVOR:', value: membershipCreditBalanceSummary(rows) },
     { key: 'next-session', label: 'PRÓXIMA SESIÓN:', value: upcoming ? formatDisplayDateOnly(upcoming.fecha_de_sesion || upcoming.fecha_esperada) : 'Sin próxima sesión' },
     { key: 'next-delivery', label: 'PRÓXIMA ENTREGA:', value: nextMembershipDeliveryText(rows) },
     { key: 'expired', label: 'MEMBRESÍAS VENCIDAS:', value: expiredText },
