@@ -321,6 +321,60 @@ async function supabaseFetch(pathname, options = {}) {
   return body;
 }
 
+function cloudDownloadReference(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  let parsed;
+  try { parsed = new URL(raw, CLOUD_HIDDENROOM_URL); } catch { return null; }
+  if (!['/api/download', '/api/download-link', '/api/download-folder'].includes(parsed.pathname)) return null;
+  const requestedPath = parsed.searchParams.get('path');
+  const name = parsed.searchParams.get('name');
+  if (!requestedPath || !name) return null;
+  return {
+    path: normalizeCloudPath(requestedPath),
+    name: safeChildName(name),
+    type: parsed.pathname === '/api/download-folder' ? 'folder' : 'file',
+  };
+}
+
+async function findAuthorizedLegacyDownload(user, requestedName) {
+  const operationalUserId = String(user.profile?.user_id || '').trim();
+  if (!operationalUserId) return null;
+  const name = safeChildName(requestedName);
+  const encodedUserId = encodeURIComponent(operationalUserId);
+  const downloads = await supabaseFetch(`/rest/v1/downloads?select=storage_path,type,release_mode,membership_id,membership_delivery_id,membership_cycle_number&user_id=eq.${encodedUserId}&limit=1000`, {
+    headers: supabaseHeaders(),
+  });
+  const membershipDownloads = (Array.isArray(downloads) ? downloads : []).filter((row) => row?.release_mode === 'membership_delivery');
+  let releasedDeliveryIds = new Set();
+  let releasedMembershipCycles = new Set();
+  if (membershipDownloads.length) {
+    const deliveries = await supabaseFetch(`/rest/v1/membership_material_deliveries?select=id,membership_id,cycle_number,delivered_at&user_id=eq.${encodedUserId}&limit=1000`, {
+      headers: supabaseHeaders(),
+    });
+    releasedDeliveryIds = new Set((Array.isArray(deliveries) ? deliveries : [])
+      .filter((row) => row?.delivered_at)
+      .map((row) => String(row.id))
+      .filter(Boolean));
+    releasedMembershipCycles = new Set((Array.isArray(deliveries) ? deliveries : [])
+      .filter((row) => row?.delivered_at && row?.cycle_number !== null && row?.cycle_number !== undefined)
+      .map((row) => `${row.membership_id || ''}\u0000${row.cycle_number}`));
+  }
+  for (const download of Array.isArray(downloads) ? downloads : []) {
+    if (download.release_mode === 'membership_delivery') {
+      const released = (download.membership_delivery_id && releasedDeliveryIds.has(String(download.membership_delivery_id)))
+        || releasedMembershipCycles.has(`${download.membership_id || ''}\u0000${download.membership_cycle_number}`);
+      if (!released) continue;
+    }
+    let reference;
+    try { reference = cloudDownloadReference(download.storage_path); } catch { reference = null; }
+    if (!reference || reference.type !== 'file' || reference.name !== name) continue;
+    if (!/^\/users\/[^/]+\/downloads$/i.test(reference.path)) continue;
+    return reference;
+  }
+  return null;
+}
+
 function slugifyUsername(value, fallback) {
   const normalized = String(value || '')
     .normalize('NFKD')
@@ -609,6 +663,12 @@ async function resolveDownloadChild(user, baseRoot, requestedPath, rawName) {
   } catch (err) {
     const normalizedPath = normalizeCloudPath(requestedPath);
     const name = safeChildName(rawName);
+    if (!user.isAdmin && normalizedPath === '/downloads') {
+      const legacyReference = await findAuthorizedLegacyDownload(user, name);
+      if (legacyReference) {
+        return resolveSafeChild(path.resolve(CLOUD_ROOT), legacyReference.path, legacyReference.name, { mustExist: true });
+      }
+    }
     const canSearchLegacyUserDownloads = user.isAdmin && /^\/users\/[^/]+\/downloads$/i.test(normalizedPath);
     if (!canSearchLegacyUserDownloads) throw err;
 
