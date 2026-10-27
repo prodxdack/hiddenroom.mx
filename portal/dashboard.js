@@ -3039,6 +3039,13 @@ function renderLoadingBlock(label = 'Cargando') {
 
 
 /* -- CLIENT: DOWNLOADS -------------------------------------- */
+function clientHistoryOperationalUserId() {
+  const viewAsUserId = state.viewAs?.active
+    ? state.viewAs.profile?.user_id
+    : null;
+  return String(viewAsUserId ?? state.user?.user_id ?? '').trim();
+}
+
 function groupClientDownloadsByMonth(rows = []) {
   const groups = new Map();
   rows.forEach((item, index) => {
@@ -3219,10 +3226,11 @@ async function renderClientDownloadBrowser(folder, browser) {
 }
 
 async function renderClientDownloads() {
+  const userId = clientHistoryOperationalUserId();
   const { data, error } = await supabase
     .from('downloads')
     .select('*')
-    .eq('user_id', state.user.user_id)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) {
     console.error('[HR] renderClientDownloads:', error);
@@ -3528,10 +3536,11 @@ async function downloadCloudFileFromPortal(link) {
 
 /* -- CLIENT: SESSIONS --------------------------------------- */
 async function renderClientSessions() {
+  const userId = clientHistoryOperationalUserId();
   const { data, error } = await supabase
     .from('sessions')
     .select('*')
-    .eq('user_id', state.user.user_id)
+    .eq('user_id', userId)
     .order('session_date', { ascending: false });
 
   if (error) {
@@ -3594,10 +3603,11 @@ async function renderClientSessions() {
 
 /* -- CLIENT: TRANSACTIONS ----------------------------------- */
 async function renderClientTransactions() {
+  const userId = clientHistoryOperationalUserId();
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
-    .eq('user_id', state.user.user_id)
+    .eq('user_id', userId)
     .order('date', { ascending: false });
 
   if (error) {
@@ -3660,10 +3670,11 @@ async function renderClientTransactions() {
 
 /* -- CLIENT: CONTRACTS -------------------------------------- */
 async function renderClientContracts() {
+  const userId = clientHistoryOperationalUserId();
   const { data, error } = await supabase
     .from('contracts')
     .select('*')
-    .eq('user_id', state.user.user_id)
+    .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -3708,7 +3719,7 @@ async function renderClientContracts() {
 }
 
 async function renderClientMembership() {
-  const userId = state.user?.user_id;
+  const userId = clientHistoryOperationalUserId();
   const [membershipsResult, sessionsResult, transactionsResult, materialDeliveriesResult] = await Promise.all([
     supabase
       .from('memberships')
@@ -3768,7 +3779,7 @@ async function renderClientMembership() {
 
 /* -- CLIENT: TICKETS ---------------------------------------- */
 async function renderClientTickets() {
-  const userId = state.user?.user_id;
+  const userId = clientHistoryOperationalUserId();
   let tickets = [];
 
   if (userId) {
@@ -3899,6 +3910,7 @@ function renderClientStore() {
 
 /* -- CLIENT: REWARDS ---------------------------------------- */
 async function renderClientRewards() {
+  const userId = clientHistoryOperationalUserId();
   const [
     { data: scores, error: scoresError },
     { data: rewards, error: rewardsError },
@@ -3907,17 +3919,17 @@ async function renderClientRewards() {
     supabase
       .from('scores')
       .select('*')
-      .eq('user_id', state.user.user_id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false }),
     supabase
       .from('rewards')
       .select('id, concept, created_at')
-      .eq('user_id', state.user.user_id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false }),
     supabase
       .from('ig_contest')
       .select('id, concepto, user_id, ig_username, created_at')
-      .eq('user_id', state.user.user_id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false }),
   ]);
 
