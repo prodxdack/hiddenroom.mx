@@ -17,6 +17,7 @@
  */
 
 import { cloudSourceToFile, createCloudSourcePicker, joinCloudPath, walkCloudSource } from "../assets/js/cloud-source-picker.js?v=20261026-cloud-picker-lock-v1";
+import { getHrDisclosureState, renderHrDisclosure } from "../assets/js/hr-disclosure.js?v=20261028-hr-disclosure-v2";
 
 'use strict';
 
@@ -66,6 +67,7 @@ const NOTIFICATIONS_ENABLED = true;
 const ACTIVE_SECTION_STORAGE_KEY = 'hr_dashboard_active_section';
 const ADMIN_TABLE_STORAGE_KEY = 'hr_dashboard_admin_table';
 const DASHBOARD_PREFS_STORAGE_KEY = 'hr_dashboard_prefs';
+const FINANCE_GOAL_DEFAULTS = { income: 0, profit: 0, hours: 0 };
 const MEMBERSHIP_CANONICAL = 'MEMBRESÍA';
 const MEMBERSHIP_WEEKLY_COST = 500;
 const ERP_TYPE_OPTIONS = ['INGRESO', 'EGRESO'];
@@ -3761,6 +3763,7 @@ async function renderClientMembership() {
   const visibleMembershipRows = sortRowsByColumn(membershipRows, 'fecha_esperada', 'desc');
   const membershipNotices = renderMembershipNotices(membershipRows);
   const membershipSummary = renderMembershipSummary(membershipRows);
+  const hasActiveMembership = membershipIsCurrentlyActive(membershipsResult.data ?? []);
 
   return `
     <section class="db-section hr-portal-section" aria-labelledby="title-membership">
@@ -3771,7 +3774,7 @@ async function renderClientMembership() {
       ${membershipNotices}
       ${membershipSummary}
       ${renderMembershipDashboardTable(visibleMembershipRows)}
-      ${renderMembershipSyncFooter()}
+      ${renderMembershipSyncFooter(hasActiveMembership)}
     </section>
   `;
 }
@@ -4098,7 +4101,7 @@ async function renderCollabFinance() {
 
   return sectionShell('Colaborador', 'Financiero', 'title-collab-finance', `
     ${renderCollabFinanceEventFilter(events, eventId)}
-    ${renderFinanceFilters(filters)}
+    ${renderFinanceFilters(filters, { showComparison: false })}
     ${renderEventInfo(selectedEvent)}
     ${renderEventSummaryCards(eventSummaryFor(selectedEvent, data ?? []))}
     ${renderEventRightsChart(selectedEvent, data ?? [])}
@@ -4119,17 +4122,21 @@ async function fetchCollabFinanceTransactions(filters, eventId, events = []) {
 }
 
 function renderCollabFinanceEventFilter(events = [], selectedEventId = '') {
-  return `
-    <div class="db-toolbar hr-table-toolbar">
-      <label class="db-field db-field--compact">
-        <span>Eventos</span>
-        <select data-action="collab-finance-event" aria-label="Filtrar financiero por evento">
-          ${events.map((event) => optionHTML(String(event.id ?? event.event_id), eventLabel(event), selectedEventId)).join('')}
-        </select>
-      </label>
-      <button class="db-btn-secondary" type="button" data-action="export-finance-pdf">Exportar PDF</button>
-    </div>
-  `;
+  return renderHrDisclosure({
+    key: 'collab.finance.toolbar.event-scope',
+    title: 'Vista y exportación',
+    meta: 'Evento',
+    className: 'db-finance-toolbar-disclosure',
+    body: `<div class="db-toolbar hr-table-toolbar">
+        <label class="db-field db-field--compact">
+          <span>Eventos</span>
+          <select data-action="collab-finance-event" aria-label="Filtrar financiero por evento">
+            ${events.map((event) => optionHTML(String(event.id ?? event.event_id), eventLabel(event), selectedEventId)).join('')}
+          </select>
+        </label>
+        <button class="db-btn-secondary" type="button" data-action="export-finance-pdf">Exportar PDF</button>
+      </div>`,
+  });
 }
 
 async function renderCollabTasks(contextLabel = 'Colaborador') {
@@ -4505,7 +4512,7 @@ async function renderErpFinance() {
 
     return sectionShell('ERP', 'Finanzas', 'title-erp-finance', `
       ${renderFinanceScopeFilters(filters, events)}
-      ${renderFinanceFilters(filters)}
+      ${renderFinanceFilters(filters, { showComparison: filters.scope === 'studio' })}
       ${selectedEvent ? renderEventInfo(selectedEvent) : '<p class="db-empty">Sin eventos disponibles.</p>'}
       ${selectedEvent ? renderEventSummaryCards(selectedEvent) : ''}
       ${selectedEvent ? renderEventRightsChart(selectedEvent, data ?? []) : ''}
@@ -4518,7 +4525,12 @@ async function renderErpFinance() {
     filters.eventId = '';
     setPersistedDataValue('financeEventId', '');
   }
-  const { data, error } = await fetchFinanceTransactions(filters, events);
+  const [{ data, error }, comparisonRows, sessions, trendRows] = await Promise.all([
+    fetchFinanceTransactions(filters, events),
+    fetchFinanceComparisonTransactions(filters, events),
+    filters.scope === 'studio' ? fetchFinanceSessions(filters) : Promise.resolve([]),
+    filters.scope === 'studio' ? fetchFinanceTrendTransactions(filters) : Promise.resolve([]),
+  ]);
 
   if (error) {
     console.error('[HR] renderErpFinance:', error);
@@ -4529,15 +4541,23 @@ async function renderErpFinance() {
 
   state.data.erpFinanceRows = data ?? [];
   state.data.erpFinanceFilters = filters;
+  state.data.erpFinanceComparisonRows = comparisonRows ?? [];
+  state.data.erpFinanceSessions = sessions ?? [];
+  state.data.erpFinanceTrendRows = trendRows ?? [];
 
   return sectionShell('ERP', 'Finanzas', 'title-erp-finance', `
     ${renderFinanceScopeFilters(filters, events)}
-    ${renderFinanceFilters(filters)}
-    ${renderFinanceMetrics(data ?? [], filters.scope === 'events' ? eventFinanceAmount : transactionAmount, {
-      balanceFromAmountWhenNoIncomeExpense: filters.scope === 'events',
-    })}
-    ${filters.scope === 'events' ? renderEventFinanceTransactionsTable(data ?? []) : renderTransactionsTable(data ?? [])}
-  `);
+    ${renderFinanceFilters(filters, { showComparison: filters.scope === 'studio' })}
+    ${filters.scope === 'studio'
+      ? renderStudioFinanceDashboard(data ?? [], comparisonRows ?? [], sessions ?? [], filters, trendRows ?? [])
+      : renderFinanceMetrics(data ?? [], filters.scope === 'events' ? eventFinanceAmount : transactionAmount, {
+        balanceFromAmountWhenNoIncomeExpense: filters.scope === 'events',
+      })}
+    ${filters.scope === 'events' ? renderEventFinanceTransactionsTable(data ?? []) : `
+      ${renderFinanceMovementFilter()}
+      ${renderTransactionsTable(filterFinanceMovementRows(data ?? []))}
+    `}
+  `, 'db-section--erp-finance');
 }
 
 async function renderErpInfrastructure() {
@@ -6921,6 +6941,7 @@ function getFinanceFilters() {
     month: persistedDataValue('financeMonth', ''),
     year: persistedDataValue('financeYear', String(now.getFullYear())),
     type: persistedDataValue('financeType', 'ambos'),
+    comparison: persistedDataValue('financeComparison', 'previous-period'),
     scope: persistedDataValue('financeScope', 'studio'),
     studio: persistedDataValue('financeStudio', 'IXT'),
     eventId: persistedDataValue('financeEventId', ''),
@@ -6963,6 +6984,81 @@ async function fetchFinanceTransactions(filters, events = []) {
   }
 
   return fetchHrEventFinanceTransactions(filters, filters.eventId, events);
+}
+
+async function fetchFinanceComparisonTransactions(filters, events = []) {
+  const comparisonFilters = getFinanceComparisonFilters(filters);
+  if (!comparisonFilters) return [];
+
+  const result = await fetchFinanceTransactions(comparisonFilters, events);
+  if (result?.error) {
+    console.info('[HR] finance comparison unavailable:', result.error.message);
+    return [];
+  }
+  return result?.data ?? [];
+}
+
+async function fetchFinanceTrendTransactions(filters) {
+  if (filters?.scope !== 'studio' || !filters.studio) return [];
+
+  const anchor = financeTrendAnchor(filters);
+  const start = new Date(anchor.getFullYear(), anchor.getMonth() - 11, 1);
+  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
+  const startValue = start.toISOString().slice(0, 10);
+  const endValue = end.toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('studio', filters.studio)
+    .gte('date', startValue)
+    .lt('date', endValue)
+    .order('date', { ascending: true });
+
+  if (error) {
+    console.info('[HR] finance trend unavailable:', error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
+async function fetchFinanceSessions(filters) {
+  let query = supabase
+    .from('sessions')
+    .select('id, session_date, user_id, username, status, type, hour, start, end, sc_end, cost')
+    .order('session_date', { ascending: false });
+
+  query = applyFinanceDateRange(query, filters, 'session_date');
+  const { data, error } = await query;
+  if (error) {
+    console.info('[HR] finance sessions unavailable:', error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
+function getFinanceComparisonFilters(filters) {
+  if (!filters?.year) return null;
+
+  const comparison = filters.comparison || 'previous-period';
+  const currentYear = Number(filters.year);
+  const currentMonth = filters.month ? Number(filters.month) : null;
+  if (!Number.isFinite(currentYear)) return null;
+
+  if (currentMonth && Number.isFinite(currentMonth)) {
+    const offset = comparison === 'same-period-last-year' ? 12 : 1;
+    const date = new Date(currentYear, currentMonth - 1 - offset, 1);
+    return {
+      ...filters,
+      year: String(date.getFullYear()),
+      month: String(date.getMonth() + 1).padStart(2, '0'),
+    };
+  }
+
+  return {
+    ...filters,
+    year: String(currentYear - (comparison === 'same-period-last-year' ? 1 : 1)),
+    month: '',
+  };
 }
 
 function buildFinanceTransactionQuery(tableName, filters) {
@@ -7034,40 +7130,63 @@ function renderFinanceScopeFilters(filters, events = []) {
   const secondaryValue = filters.scope === 'events' ? filters.eventId : filters.studio;
   const secondaryLabel = filters.scope === 'events' ? 'Evento' : 'Estudio';
 
-  return `
-    <div class="db-toolbar hr-table-toolbar">
-      <label class="db-field db-field--compact">
-        <span>Origen</span>
-        <select data-action="finance-filter" data-filter-key="financeScope">
-          ${optionHTML('studio', 'Estudio', filters.scope)}
-          ${optionHTML('events', 'Eventos', filters.scope)}
-        </select>
-      </label>
-      <label class="db-field db-field--compact">
-        <span>${escapeHTML(secondaryLabel)}</span>
-        <select data-action="finance-filter" data-filter-key="${escapeAttr(secondaryKey)}">
-          ${secondaryOptions.map(([value, label]) => optionHTML(value, label, secondaryValue)).join('')}
-        </select>
-      </label>
-      <button class="db-btn-secondary" type="button" data-action="export-finance-pdf">Exportar PDF</button>
-    </div>
-  `;
+  return renderHrDisclosure({
+    key: 'finance.toolbar.scope',
+    title: 'Origen y exportación',
+    meta: secondaryLabel,
+    className: 'db-finance-toolbar-disclosure',
+    defaultOpen: financeToolbarIsOpen('scope'),
+    body: `<div class="db-toolbar hr-table-toolbar">
+        <label class="db-field db-field--compact">
+          <span>Origen</span>
+          <select data-action="finance-filter" data-filter-key="financeScope">
+            ${optionHTML('studio', 'Estudio', filters.scope)}
+            ${optionHTML('events', 'Eventos', filters.scope)}
+          </select>
+        </label>
+        <label class="db-field db-field--compact">
+          <span>${escapeHTML(secondaryLabel)}</span>
+          <select data-action="finance-filter" data-filter-key="${escapeAttr(secondaryKey)}">
+            ${secondaryOptions.map(([value, label]) => optionHTML(value, label, secondaryValue)).join('')}
+          </select>
+        </label>
+        <button class="db-btn-secondary" type="button" data-action="export-finance-pdf">Exportar PDF</button>
+      </div>`,
+  });
 }
 
-function renderFinanceFilters(filters) {
+function renderFinanceFilters(filters, options = {}) {
   const years = Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i));
   const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
-  return `
-    <div class="db-toolbar hr-table-toolbar">
-      <label class="db-field db-field--compact"><span>Mes</span><select data-action="finance-filter" data-filter-key="financeMonth">${optionHTML('', 'Todos los meses', filters.month)}${months.map((month) => optionHTML(month, month, filters.month)).join('')}</select></label>
-      <label class="db-field db-field--compact"><span>Año</span><select data-action="finance-filter" data-filter-key="financeYear">${optionHTML('', 'Todos los años', filters.year)}${years.map((year) => optionHTML(year, year, filters.year)).join('')}</select></label>
-      <label class="db-field db-field--compact"><span>Tipo</span><select data-action="finance-filter" data-filter-key="financeType">${[
-        ['ambos', 'Ingresos y egresos'],
-        ['ingresos', 'Ingresos'],
-        ['egresos', 'Egresos'],
-      ].map(([value, label]) => optionHTML(value, label, filters.type)).join('')}</select></label>
-    </div>
-  `;
+  const comparisonField = options.showComparison === false ? '' : `
+      <label class="db-field db-field--compact"><span>Comparar con</span><select data-action="finance-filter" data-filter-key="financeComparison">${[
+        ['previous-period', filters.month ? 'Periodo anterior' : 'Año anterior'],
+        ['same-period-last-year', filters.month ? 'Mismo mes del año anterior' : 'Mismo periodo del año anterior'],
+      ].map(([value, label]) => optionHTML(value, label, filters.comparison)).join('')}</select></label>`;
+  return renderHrDisclosure({
+    key: 'finance.toolbar.period',
+    title: 'Periodo y comparación',
+    meta: financePeriodLabel(filters),
+    className: 'db-finance-toolbar-disclosure',
+    defaultOpen: financeToolbarIsOpen('period'),
+    body: `<div class="db-toolbar hr-table-toolbar">
+        <label class="db-field db-field--compact"><span>Mes</span><select data-action="finance-filter" data-filter-key="financeMonth">${optionHTML('', 'Todos los meses', filters.month)}${months.map((month) => optionHTML(month, month, filters.month)).join('')}</select></label>
+        <label class="db-field db-field--compact"><span>Año</span><select data-action="finance-filter" data-filter-key="financeYear">${optionHTML('', 'Todos los años', filters.year)}${years.map((year) => optionHTML(year, year, filters.year)).join('')}</select></label>
+        <label class="db-field db-field--compact"><span>Tipo</span><select data-action="finance-filter" data-filter-key="financeType">${[
+          ['ambos', 'Ingresos y egresos'],
+          ['ingresos', 'Ingresos'],
+          ['egresos', 'Egresos'],
+        ].map(([value, label]) => optionHTML(value, label, filters.type)).join('')}</select></label>
+        ${comparisonField}
+      </div>`,
+  });
+}
+
+function financeToolbarIsOpen(key) {
+  const sharedState = getHrDisclosureState(`finance.toolbar.${key}`);
+  if (sharedState !== null) return sharedState;
+  const stored = persistedDataValue(`financeToolbar:${key}`, null);
+  return stored === null ? false : Boolean(stored);
 }
 
 function renderFinanceMetrics(transactions, amountGetter = transactionAmount, options = {}) {
@@ -7088,8 +7207,8 @@ function renderFinanceMetrics(transactions, amountGetter = transactionAmount, op
         <header class="db-card__header"><span class="section-label">Ingresos vs egresos</span></header>
         <div class="db-card__inner">
           <div class="db-bar-chart">
-            <div><span>Ingresos</span><i style="--bar:${showIncomeExpenseAsNE ? 0 : Math.round((ingresos / max) * 100)}%"></i><strong>${showIncomeExpenseAsNE ? 'NE' : money(ingresos)}</strong></div>
-            <div><span>Egresos</span><i style="--bar:${showIncomeExpenseAsNE ? 0 : Math.round((egresos / max) * 100)}%"></i><strong>${showIncomeExpenseAsNE ? 'NE' : money(egresos)}</strong></div>
+            <div class="db-finance-bar--income"><span>Ingresos</span><i style="--bar:${showIncomeExpenseAsNE ? 0 : Math.round((ingresos / max) * 100)}%"></i><strong>${showIncomeExpenseAsNE ? 'NE' : money(ingresos)}</strong></div>
+            <div class="db-finance-bar--expense"><span>Egresos</span><i style="--bar:${showIncomeExpenseAsNE ? 0 : Math.round((egresos / max) * 100)}%"></i><strong>${showIncomeExpenseAsNE ? 'NE' : money(egresos)}</strong></div>
           </div>
         </div>
       </article>
@@ -7101,6 +7220,359 @@ function renderFinanceMetrics(transactions, amountGetter = transactionAmount, op
       </article>
     </div>
   `;
+}
+
+function renderStudioFinanceDashboard(transactions, comparisonRows, sessions, filters, trendRows = []) {
+  const totals = financeTotals(transactions, transactionAmount);
+  const goals = financeGoalsForStudio(filters.studio);
+  const sources = financeSourceBreakdown(transactions);
+  const buyers = financeBuyerBreakdown(transactions);
+  const usage = financeUsageMetrics(transactions, sessions);
+  const studioLabel = FINANCE_STUDIO_SOURCES.find((item) => item.value === filters.studio)?.label ?? filters.studio;
+  const incomeGoal = Number(goals.income || 0);
+  const incomeProgress = financeGoalProgress(totals.ingresos, incomeGoal);
+  const goalText = incomeGoal > 0
+    ? `Llevas ${incomeProgress}% de la meta de ingresos.`
+    : 'Define una meta de ingresos cobrados para medir el avance.';
+  const weeklyNeed = incomeGoal > 0 ? Math.max(0, incomeGoal - totals.ingresos) / financeWeeksRemaining(filters) : 0;
+
+  return `
+    <div class="db-finance-dashboard db-finance-dashboard--studio" data-finance-studio="${escapeAttr(filters.studio)}">
+      <div class="db-grid db-grid--4col db-finance-summary db-finance-kpis" aria-label="Resumen financiero de ${escapeAttr(studioLabel)}">
+        ${renderFinanceKpiCard('Ingresos cobrados', money(totals.ingresos), 'Entradas registradas en el periodo', 'income')}
+        ${renderFinanceKpiCard('Egresos pagados', money(totals.egresos), 'Costos registrados en el periodo', 'expense')}
+        ${renderFinanceKpiCard('Flujo neto del periodo', money(totals.balance), 'Ingresos cobrados menos egresos pagados', totals.balance >= 0 ? 'net' : 'negative')}
+        <article class="db-card hr-card db-finance-kpi db-finance-kpi--goal">
+          <div class="db-card__inner">
+            <span class="section-label">Avance de meta</span>
+            <strong>${incomeGoal > 0 ? `${incomeProgress}%` : 'Sin meta'}</strong>
+            <span class="db-finance-kpi__note">${escapeHTML(goalText)}</span>
+            ${incomeGoal > 0 ? `<span class="db-finance-kpi__sub">${money(totals.ingresos)} de ${money(incomeGoal)}</span>` : ''}
+          </div>
+        </article>
+      </div>
+
+      <div class="db-finance-layout">
+        ${renderHrDisclosure({
+          key: 'finance.goals',
+          className: 'db-finance-panel db-finance-panel-disclosure db-finance-mobile-disclosure db-finance-goals-panel',
+          defaultOpen: true,
+          responsiveOnly: true,
+          summary: '<span class="db-finance-disclosure-heading"><span class="section-label">Metas del estudio</span><strong>Qué falta para llegar</strong></span><small class="db-finance-panel__badge">Solo en este navegador</small>',
+          body: `<div class="db-card__inner">
+            <p class="db-finance-copy">Las metas se guardan como preferencia local. La meta de utilidad no se interpreta como utilidad contable mientras falten egresos.</p>
+            ${incomeGoal > 0
+              ? `<div class="db-finance-goal-callout"><strong>${money(Math.max(0, incomeGoal - totals.ingresos))}</strong><span>restante para ingresos cobrados</span><small>${money(weeklyNeed)} por semana al ritmo necesario</small></div>`
+              : '<div class="db-finance-goal-callout db-finance-goal-callout--empty"><strong>Configura tus metas</strong><span>ingresos cobrados, utilidad y horas vendidas</span></div>'}
+            <div class="db-finance-goal-notes">
+              <span>Meta de utilidad: ${Number(goals.profit || 0) > 0 ? money(goals.profit) : 'sin definir'} <small>(referencia, no utilidad contable)</small></span>
+              <span>Meta de horas vendidas: ${Number(goals.hours || 0) > 0 ? `${Number(goals.hours)} h` : 'sin definir'}</span>
+            </div>
+            <details class="db-finance-goals-editor">
+              <summary>Editar metas</summary>
+              <form class="db-form" data-form="finance-goals">
+                <div class="db-form__row">
+                  <label class="db-field"><span>Ingresos cobrados (MXN)</span><input name="income" type="number" min="0" step="100" value="${escapeAttr(incomeGoal || '')}" placeholder="Ej. 30000" /></label>
+                  <label class="db-field"><span>Utilidad objetivo (MXN)</span><input name="profit" type="number" min="0" step="100" value="${escapeAttr(Number(goals.profit || 0) || '')}" placeholder="Se habilita con egresos completos" /></label>
+                </div>
+                <label class="db-field"><span>Horas vendidas</span><input name="hours" type="number" min="0" step="1" value="${escapeAttr(Number(goals.hours || 0) || '')}" placeholder="Ej. 80" /></label>
+                <button class="db-btn-secondary" type="submit">Guardar metas locales</button>
+              </form>
+            </details>
+          </div>`,
+        })}
+
+        ${renderHrDisclosure({
+          key: 'finance.services',
+          className: 'db-finance-panel db-finance-panel-disclosure db-finance-mobile-disclosure',
+          defaultOpen: true,
+          responsiveOnly: true,
+          summary: '<span class="db-finance-disclosure-heading"><span class="section-label">De dónde viene el dinero</span><strong>Servicios y categorías</strong></span>',
+          body: `<div class="db-card__inner db-finance-breakdown">
+            ${sources.length ? sources.map((source) => `
+              <div class="db-finance-breakdown__row">
+                <div><strong>${escapeHTML(source.label)}</strong><span>${source.share}% de ingresos</span></div>
+                <i style="--bar:${source.share}%" aria-hidden="true"></i>
+                <b>${money(source.total)}</b>
+              </div>
+            `).join('') : '<p class="db-empty">Sin ingresos categorizados en el periodo.</p>'}
+          </div>`,
+        })}
+      </div>
+
+      <div class="db-finance-layout">
+        ${renderFinanceComparisonPanel(transactions, comparisonRows, filters)}
+        ${renderHrDisclosure({
+          key: 'finance.usage',
+          className: 'db-finance-panel db-finance-panel-disclosure db-finance-mobile-disclosure db-finance-usage',
+          defaultOpen: true,
+          responsiveOnly: true,
+          summary: '<span class="db-finance-disclosure-heading"><span class="section-label">Uso del estudio</span><strong>Capacidad y sesiones</strong></span>',
+          body: `<div class="db-card__inner db-finance-usage__grid">
+            ${renderFinanceUsageMetric('Sesiones registradas', usage.sessions ? String(usage.sessions) : 'Sin datos', 'con fecha en el periodo')}
+            ${renderFinanceUsageMetric('Horas con horario', usage.hours !== null ? `${usage.hours} h${Number(goals.hours || 0) > 0 ? ` / ${Number(goals.hours)} h` : ''}` : 'Sin datos', usage.hours !== null && Number(goals.hours || 0) > 0 ? `${financeGoalProgress(usage.hours, goals.hours)}% de meta de horas` : usage.hours !== null ? 'a partir de inicio y fin' : 'faltan horarios capturados')}
+            ${renderFinanceUsageMetric('Ingreso promedio', usage.averageIncome ? money(usage.averageIncome) : 'Sin datos', 'por movimiento de ingreso')}
+            ${renderFinanceUsageMetric('Ocupación', 'Sin datos', 'captura disponibilidad para medirla')}
+          </div>`,
+        })}
+      </div>
+
+      <div class="db-finance-layout db-finance-layout--extended">
+        ${renderHrDisclosure({
+          key: 'finance.buyers',
+          className: 'db-finance-panel db-finance-panel-disclosure db-finance-mobile-disclosure db-finance-buyers',
+          defaultOpen: true,
+          responsiveOnly: true,
+          summary: '<span class="db-finance-disclosure-heading"><span class="section-label">Clientes</span><strong>Usuarios que hicieron compras</strong></span>',
+          body: `<div class="db-card__inner db-finance-buyers__inner">
+            ${buyers.length ? `<ol class="db-finance-buyers__list">${buyers.map((buyer, index) => `
+              <li class="db-finance-buyers__row">
+                <span class="db-finance-buyers__rank">${index + 1}</span>
+                <span class="db-finance-buyers__name">${escapeHTML(buyer.label)}</span>
+                <strong>${money(buyer.total)}</strong>
+              </li>
+            `).join('')}</ol>` : '<p class="db-empty">Sin compras identificadas en el periodo.</p>'}
+          </div>`,
+        })}
+
+        ${renderFinanceTrendPanel(trendRows)}
+      </div>
+    </div>
+  `;
+}
+
+function renderFinanceKpiCard(label, value, note, tone = 'neutral') {
+  return `
+    <article class="db-card hr-card db-finance-kpi db-finance-kpi--${escapeAttr(tone)}">
+      <div class="db-card__inner">
+        <span class="section-label">${escapeHTML(label)}</span>
+        <strong>${escapeHTML(value)}</strong>
+        <span class="db-finance-kpi__note">${escapeHTML(note)}</span>
+      </div>
+    </article>
+  `;
+}
+
+function renderFinanceComparisonPanel(currentRows, comparisonRows, filters) {
+  const current = financeTotals(currentRows);
+  const comparison = financeTotals(comparisonRows);
+  const comparisonFilters = getFinanceComparisonFilters(filters);
+  const label = comparisonFilters ? financePeriodLabel(comparisonFilters) : 'periodo comparable';
+  const hasComparison = comparisonRows.length > 0;
+  const metrics = [
+    ['Ingresos cobrados', current.ingresos, comparison.ingresos],
+    ['Egresos pagados', current.egresos, comparison.egresos],
+    ['Flujo neto', current.balance, comparison.balance],
+  ];
+
+  return renderHrDisclosure({
+    key: 'finance.comparison',
+    className: 'db-finance-panel db-finance-panel-disclosure db-finance-mobile-disclosure db-finance-comparison',
+    defaultOpen: true,
+    responsiveOnly: true,
+    summary: `<span class="db-finance-disclosure-heading"><span class="section-label">Comparación</span><strong>Contra ${escapeHTML(label)}</strong></span>`,
+    body: `<div class="db-card__inner">
+        ${hasComparison ? metrics.map(([metric, value, base]) => {
+          const delta = financeDelta(value, base);
+          return `<div class="db-finance-comparison__row"><span>${escapeHTML(metric)}</span><strong>${money(value)}</strong><em class="db-finance-delta db-finance-delta--${escapeAttr(delta.tone)}">${escapeHTML(delta.label)}</em></div>`;
+        }).join('') : '<p class="db-empty">No hay datos suficientes para comparar este periodo.</p>'}
+        <small class="db-finance-footnote">La comparación usa los mismos filtros de estudio y tipo.</small>
+      </div>`,
+  });
+}
+
+function renderFinanceTrendPanel(trendRows, filters = state.data.erpFinanceFilters ?? {}) {
+  const model = financeTrendModel(trendRows, filters);
+  return renderHrDisclosure({
+    key: 'finance.trend',
+    className: 'db-finance-panel db-finance-panel-disclosure db-finance-mobile-disclosure db-finance-trend',
+    defaultOpen: true,
+    responsiveOnly: true,
+    summary: '<span class="db-finance-disclosure-heading"><span class="section-label">Tendencia</span><strong>Últimos 12 meses</strong></span>',
+    body: `<div class="db-card__inner db-finance-trend__inner">
+      ${model.hasData ? renderFinanceTrendChart(model) : '<p class="db-empty">Sin movimientos suficientes para construir la tendencia.</p>'}
+      <small class="db-finance-footnote">La base actual registra la venta total como ingresos; la utilidad es ingresos menos egresos. Las líneas adicionales corresponden a servicios y categorías.</small>
+    </div>`,
+  });
+}
+
+function financeBuyerBreakdown(transactions) {
+  const totals = new Map();
+  transactions
+    .filter((tx) => normalizeTransactionType(tx.type) === 'INGRESO')
+    .forEach((tx) => {
+      const label = clientLabelForTransaction(tx);
+      totals.set(label, (totals.get(label) || 0) + transactionAmount(tx));
+    });
+
+  return [...totals.entries()]
+    .map(([label, total]) => ({ label, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function financeTrendAnchor(filters = {}) {
+  const now = new Date();
+  if (filters.year && filters.month) {
+    return new Date(Number(filters.year), Number(filters.month) - 1, 1);
+  }
+  if (filters.year) return new Date(Number(filters.year), 11, 1);
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+function financeTrendModel(rows = [], filters = {}) {
+  const anchor = financeTrendAnchor(filters);
+  const months = Array.from({ length: 12 }, (_, index) => new Date(anchor.getFullYear(), anchor.getMonth() - 11 + index, 1));
+  const keys = months.map((month) => `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`);
+  const totalsByMonth = new Map(keys.map((key) => [key, { income: 0, expense: 0, categories: new Map() }]));
+
+  (rows ?? []).forEach((tx) => {
+    const key = String(tx?.date ?? '').slice(0, 7);
+    const month = totalsByMonth.get(key);
+    if (!month) return;
+    const amount = transactionAmount(tx);
+    const type = normalizeTransactionType(tx.type);
+    if (type === 'EGRESO') {
+      month.expense += amount;
+      return;
+    }
+    if (type !== 'INGRESO') return;
+    month.income += amount;
+    const service = String(tx.service ?? '').trim();
+    if (!service) return;
+    month.categories.set(service, (month.categories.get(service) || 0) + amount);
+  });
+
+  const income = keys.map((key) => totalsByMonth.get(key).income);
+  const expense = keys.map((key) => totalsByMonth.get(key).expense);
+  const categories = [...new Set(keys.flatMap((key) => [...totalsByMonth.get(key).categories.keys()]))]
+    .sort((a, b) => {
+      const totalA = keys.reduce((sum, key) => sum + (totalsByMonth.get(key).categories.get(a) || 0), 0);
+      const totalB = keys.reduce((sum, key) => sum + (totalsByMonth.get(key).categories.get(b) || 0), 0);
+      return totalB - totalA;
+    });
+  const series = [
+    { label: 'Venta total', values: income, color: '#f0ece4' },
+    { label: 'Utilidad', values: income.map((value, index) => value - expense[index]), color: '#ff4fa3' },
+    { label: 'Ingresos', values: income, color: '#00f397' },
+    { label: 'Egresos', values: expense, color: '#ff304f' },
+    ...categories.map((category, index) => ({
+      label: category,
+      values: keys.map((key) => totalsByMonth.get(key).categories.get(category) || 0),
+      color: ['#53c7ff', '#ffc247', '#b992ff', '#ff8f5a', '#7ee787', '#d7a9ff', '#70e1c8'][index % 7],
+    })),
+  ];
+  const allValues = series.flatMap((item) => item.values).filter((value) => Number.isFinite(value));
+  return {
+    labels: months.map((month) => month.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' }).replace('.', '')),
+    series,
+    min: Math.min(0, ...allValues),
+    max: Math.max(1, ...allValues),
+    hasData: allValues.some((value) => value !== 0),
+  };
+}
+
+function renderFinanceTrendChart(model) {
+  const width = 720;
+  const height = 280;
+  const left = 54;
+  const right = 14;
+  const top = 16;
+  const bottom = 48;
+  const chartWidth = width - left - right;
+  const chartHeight = height - top - bottom;
+  const range = Math.max(1, model.max - model.min);
+  const xFor = (index) => left + (chartWidth * index / Math.max(1, model.labels.length - 1));
+  const yFor = (value) => top + ((model.max - value) / range) * chartHeight;
+  const grid = Array.from({ length: 5 }, (_, index) => {
+    const value = model.max - ((model.max - model.min) * index / 4);
+    const y = yFor(value);
+    return `<line x1="${left}" y1="${y.toFixed(1)}" x2="${width - right}" y2="${y.toFixed(1)}" class="db-finance-trend__grid-line" /><text x="${left - 8}" y="${(y + 3).toFixed(1)}" text-anchor="end" class="db-finance-trend__axis-label">${escapeHTML(money(value))}</text>`;
+  }).join('');
+  const labels = model.labels.map((label, index) => `<text x="${xFor(index).toFixed(1)}" y="${height - 18}" text-anchor="middle" class="db-finance-trend__axis-label">${escapeHTML(label)}</text>`).join('');
+  const lines = model.series.map((series, index) => {
+    const points = series.values.map((value, index) => `${xFor(index).toFixed(1)},${yFor(value).toFixed(1)}`).join(' ');
+    return `<polyline points="${points}" fill="none" stroke="${series.color}" class="db-finance-trend__line" data-finance-trend-line="${index}" />`;
+  }).join('');
+  const legend = model.series.map((series, index) => `<button class="db-finance-trend__legend-item" type="button" data-finance-trend-series="${index}" aria-pressed="false"><i style="--trend-color:${series.color}" aria-hidden="true"></i><span>${escapeHTML(series.label)}</span></button>`).join('');
+
+  return `<div class="db-finance-trend__chart-wrap" data-finance-trend>
+    <svg class="db-finance-trend__chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Gráfica lineal de ventas, utilidad, ingresos, egresos y categorías de los últimos 12 meses">
+      ${grid}${labels}${lines}
+    </svg>
+    <div class="db-finance-trend__legend" aria-label="Leyenda de la gráfica">${legend}</div>
+  </div>`;
+}
+
+function renderFinanceUsageMetric(label, value, note) {
+  return `<div class="db-finance-usage__metric"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong><small>${escapeHTML(note)}</small></div>`;
+}
+
+function financeGoalsForStudio(studio) {
+  const allGoals = persistedDataValue('financeGoalsByStudio', {});
+  const stored = allGoals && typeof allGoals === 'object' ? allGoals[studio] : null;
+  return { ...FINANCE_GOAL_DEFAULTS, ...(stored || {}) };
+}
+
+function financeGoalProgress(value, target) {
+  if (!(Number(target) > 0)) return 0;
+  return Math.round(Math.max(0, Math.min(100, (Number(value || 0) / Number(target)) * 100)));
+}
+
+function financeWeeksRemaining(filters) {
+  const now = new Date();
+  const year = Number(filters.year);
+  const month = filters.month ? Number(filters.month) - 1 : now.getMonth();
+  if (year !== now.getFullYear() || (filters.month && month !== now.getMonth())) return 1;
+  const end = filters.month ? new Date(year, month + 1, 0) : new Date(year, 11, 31);
+  return Math.max(1, Math.ceil((end.getTime() - now.getTime()) / (7 * 24 * 60 * 60 * 1000)));
+}
+
+function financeSourceBreakdown(transactions) {
+  const totals = new Map();
+  transactions
+    .filter((tx) => normalizeTransactionType(tx.type) === 'INGRESO')
+    .forEach((tx) => {
+      const label = String(tx.service || tx.concept || 'Sin categoría').trim() || 'Sin categoría';
+      totals.set(label, (totals.get(label) || 0) + transactionAmount(tx));
+    });
+  const total = [...totals.values()].reduce((sum, value) => sum + value, 0);
+  return [...totals.entries()]
+    .map(([label, value]) => ({ label, total: value, share: total > 0 ? Math.round((value / total) * 100) : 0 }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+}
+
+function financeUsageMetrics(transactions, sessions = []) {
+  const incomeRows = transactions.filter((tx) => normalizeTransactionType(tx.type) === 'INGRESO');
+  const validSessions = (sessions ?? []).filter((session) => !/cancel|cancelad/i.test(String(session.status || '')));
+  const durations = validSessions.map(sessionDurationHours).filter((value) => value !== null);
+  return {
+    sessions: validSessions.length,
+    hours: durations.length ? Number(durations.reduce((sum, value) => sum + value, 0).toFixed(1)) : null,
+    averageIncome: incomeRows.length ? incomeRows.reduce((sum, tx) => sum + transactionAmount(tx), 0) / incomeRows.length : 0,
+  };
+}
+
+function sessionDurationHours(session) {
+  const start = timeToMinutes(session?.start || session?.hour);
+  const end = timeToMinutes(session?.end || session?.sc_end);
+  if (start === null || end === null || end <= start) return null;
+  return (end - start) / 60;
+}
+
+function timeToMinutes(value) {
+  const match = String(value ?? '').match(/(\d{1,2}):?(\d{2})/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function financeDelta(value, base) {
+  if (!Number(base)) return { label: 'Sin base comparable', tone: 'neutral' };
+  const percent = Math.round(((Number(value) - Number(base)) / Math.abs(Number(base))) * 100);
+  return { label: `${percent >= 0 ? '+' : ''}${percent}%`, tone: percent >= 0 ? 'positive' : 'negative' };
 }
 
 function eventAccessFor(event, adminDefault = hasRole('admin')) {
@@ -7585,34 +8057,59 @@ function renderEventMovementOpsForm(events = [], participants = [], financeEntit
   `;
 }
 
+function financeMovementView() {
+  const value = persistedDataValue('financeMovementView', 'ingresos');
+  return value === 'egresos' ? 'egresos' : 'ingresos';
+}
+
+function filterFinanceMovementRows(transactions) {
+  const type = financeMovementView() === 'egresos' ? 'EGRESO' : 'INGRESO';
+  return (transactions ?? []).filter((tx) => normalizeTransactionType(tx.type) === type);
+}
+
+function renderFinanceMovementFilter() {
+  const selected = financeMovementView();
+  return `<div class="db-finance-movement-filter db-toolbar hr-table-toolbar">
+    <label class="db-field db-field--compact">
+      <span>Desglose de movimientos</span>
+      <select data-action="finance-movement-view" aria-label="Mostrar ingresos o egresos">
+        ${optionHTML('ingresos', 'Ingresos', selected)}
+        ${optionHTML('egresos', 'Egresos', selected)}
+      </select>
+    </label>
+  </div>`;
+}
+
 function renderTransactionsTable(transactions) {
   const tableId = `transactions-${state.activeSection}`;
   const activeSort = getTableSort(tableId, 'date', 'desc');
   const sortedTransactions = sortRowsByColumn(transactions, activeSort.field, activeSort.direction);
   const headers = [
     ['concept', 'Concepto'],
+    ['service', 'Servicio'],
     ['type', 'Tipo'],
     ['amount', 'Monto'],
     ['date', 'Fecha'],
     ['status', 'Status'],
-    ['username', 'Cliente'],
+    ['user_id', 'Cliente'],
   ];
   const rows = sortedTransactions.length
     ? sortedTransactions.map((tx) => `
-      <tr>
-        <td>${escapeHTML(tx.concept ?? '-')}</td>
-        <td>${escapeHTML(tx.type ?? '-')}</td>
-        <td>${money(Number(tx.amount ?? 0))}</td>
-        <td>${escapeHTML(formatDisplayDateOnly(tx.date))}</td>
-        <td>${escapeHTML(tx.status ?? '-')}</td>
-        <td>${escapeHTML(tx.username ?? tx.user_id ?? '-')}</td>
+      <tr class="db-finance-movement-row db-finance-movement-row--${normalizeTransactionType(tx.type) === 'EGRESO' ? 'expense' : 'income'}">
+        <td data-label="Concepto">${escapeHTML(tx.concept ?? 'Sin concepto')}</td>
+        <td data-label="Servicio">${escapeHTML(tx.service ?? 'Sin categoría')}</td>
+        <td data-label="Tipo"><span class="db-finance-type db-finance-type--${normalizeTransactionType(tx.type) === 'EGRESO' ? 'expense' : 'income'}">${escapeHTML(transactionTypeLabel(tx.type))}</span></td>
+        <td data-label="Monto">${money(Number(tx.amount ?? 0))}</td>
+        <td data-label="Fecha">${escapeHTML(formatDisplayDateOnly(tx.date))}</td>
+        <td data-label="Estado">${escapeHTML(transactionStatusLabel(tx))}</td>
+        <td data-label="Cliente">${escapeHTML(clientLabelForTransaction(tx))}</td>
       </tr>
     `).join('')
-    : '<tr class="db-table__empty-row hr-table-empty"><td colspan="6" class="db-empty hr-table-empty">Sin transacciones en el periodo.</td></tr>';
+    : `<tr class="db-table__empty-row hr-table-empty"><td colspan="${headers.length}" class="db-empty hr-table-empty">Sin movimientos en el periodo.</td></tr>`;
 
   return `
     <div class="db-table-wrap hr-table-wrap">
-      <table class="db-table hr-table hr-table-readable" aria-label="Desglose de transacciones">
+      <table class="db-table hr-table hr-table-readable db-finance-movement-table" aria-label="Movimientos financieros del estudio">
         <thead><tr>
           ${headers.map(([field, label]) => renderSortableHeader(tableId, field, label, activeSort)).join('')}
         </tr></thead>
@@ -9575,7 +10072,10 @@ function formatMembershipRowBalance(row) {
       ? `Pendiente por pagar ${money(Math.abs(saldo))}`
       : `Adeudo ${money(Math.abs(saldo))}`;
   }
-  return `Crédito ${money(saldo)}`;
+  const creditDate = formatDisplayDateOnly(row.fecha_de_credito);
+  return creditDate && creditDate !== '-'
+    ? `Crédito a favor ${money(saldo)} (${creditDate})`
+    : `Crédito a favor ${money(saldo)}`;
 }
 
 function membershipCurrentCreditValue(rows = []) {
@@ -9644,10 +10144,14 @@ function membershipBalanceParts(rows = []) {
 }
 
 function membershipOverdueBalanceSummary(rows = []) {
-  const { overdue, credit } = membershipBalanceParts(rows);
+  const { overdue } = membershipBalanceParts(rows);
   if (overdue < 0) return money(Math.abs(overdue));
-  if (credit > 0) return `Crédito ${money(credit)}`;
   return 'Sin saldo vencido';
+}
+
+function membershipCreditBalanceSummary(rows = []) {
+  const { credit } = membershipBalanceParts(rows);
+  return credit > 0 ? money(credit) : 'Sin saldo a favor';
 }
 
 function membershipPendingBalanceSummary(rows = []) {
@@ -9657,6 +10161,7 @@ function membershipPendingBalanceSummary(rows = []) {
 
 function membershipSummaryTone(key, value) {
   const normalized = normalizeCatalogValue(value);
+  if (key === 'credit-balance') return normalized === 'SIN SALDO A FAVOR' ? 'neutral' : 'success';
   if (key === 'status') {
     if (normalized.includes('CANCELADA POR INCUMPLIMIENTOS')) return 'danger';
     if (normalized === 'CON ADEUDO') return 'danger';
@@ -9962,6 +10467,7 @@ function renderMembershipSummary(rows = []) {
     { key: 'status', label: 'ESTADO DE MEMBRESÍA:', value: membershipDisplayStatus(rows) },
     { key: 'overdue-balance', label: 'SALDO VENCIDO:', value: membershipOverdueBalanceSummary(rows) },
     { key: 'pending-balance', label: 'SALDO PENDIENTE:', value: membershipPendingBalanceSummary(rows) },
+    { key: 'credit-balance', label: 'SALDO A FAVOR:', value: membershipCreditBalanceSummary(rows) },
     { key: 'next-session', label: 'PRÓXIMA SESIÓN:', value: upcoming ? formatDisplayDateOnly(upcoming.fecha_de_sesion || upcoming.fecha_esperada) : 'Sin próxima sesión' },
     { key: 'next-delivery', label: 'PRÓXIMA ENTREGA:', value: nextMembershipDeliveryText(rows) },
     { key: 'expired', label: 'MEMBRESÍAS VENCIDAS:', value: expiredText },
@@ -9979,7 +10485,29 @@ function renderMembershipSummary(rows = []) {
   `;
 }
 
-function renderMembershipSyncFooter() {
+function membershipIsCurrentlyActive(memberships = [], today = todayDateInputValue()) {
+  return memberships.some((membership) => {
+    const status = normalizeCatalogValue(membership?.status);
+    if (!['ACTIVE', 'ACTIVA'].includes(status)) return false;
+
+    const startDate = formatDateOnly(membership?.start_date);
+    const endDate = membership?.end_date ? formatDateOnly(membership.end_date) : null;
+    return (!startDate || startDate === '-' || compareDateOnly(startDate, today) <= 0)
+      && (!endDate || endDate === '-' || compareDateOnly(endDate, today) >= 0);
+  });
+}
+
+function renderMembershipSyncFooter(hasActiveMembership = true) {
+  if (!hasActiveMembership) {
+    const candidateMessage = 'Hola, quiero saber si soy candidato para una membresía en Hidden Room.';
+    return `
+      <div class="db-membership-sync db-membership-sync--candidate">
+        <p><strong>Ahorra dinero con tu MEMBRESÍA.</strong><br>En vez de pagar por unas cuantas horas de sesión, reserva tiempo semanal en el estudio y trabaja cada canción con la calidad y el cuidado que merece.</p>
+        <a class="btn-primary db-membership-sync__button" href="${escapeAttr(buildWhatsAppLink(MEMBERSHIP_SUPPORT_WHATSAPP, candidateMessage))}" target="_blank" rel="noopener noreferrer">conoce si eres candidato</a>
+      </div>
+    `;
+  }
+
   const message = 'Hola, quiero reportar o aclarar información de mi dashboard de membresía en Mysauth OS.';
   return `
     <div class="db-membership-sync">
@@ -10042,7 +10570,7 @@ function topClients(transactions, amountGetter = transactionAmount) {
   transactions
     .filter((tx) => normalizeTransactionType(tx.type) === 'INGRESO')
     .forEach((tx) => {
-      const key = tx.username || tx.user_id || 'Sin cliente';
+      const key = clientLabelForTransaction(tx);
       totals.set(key, (totals.get(key) || 0) + amountGetter(tx));
     });
 
@@ -10050,6 +10578,31 @@ function topClients(transactions, amountGetter = transactionAmount) {
     .map(([label, total]) => ({ label, total }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
+}
+
+function transactionTypeLabel(value) {
+  const type = normalizeTransactionType(value);
+  if (type === 'INGRESO') return 'Ingreso';
+  if (type === 'EGRESO') return 'Egreso';
+  return 'Sin tipo';
+}
+
+function transactionStatusLabel(transaction) {
+  const status = String(transaction?.status ?? '').trim();
+  if (status) return status;
+  return 'Registrado';
+}
+
+function clientLabelForTransaction(transaction) {
+  const user = (state.data.users ?? []).find((item) => String(item.user_id) === String(transaction?.user_id));
+  if (user?.display_name) return user.display_name;
+  if (user?.username && !isTechnicalClientLabel(user.username)) return `@${user.username}`;
+  if (transaction?.username && !isTechnicalClientLabel(transaction.username)) return `@${transaction.username}`;
+  return 'Cliente sin nombre';
+}
+
+function isTechnicalClientLabel(value) {
+  return /^(user|usuario|client|cliente)[_-][a-z0-9-]+$/i.test(String(value ?? '').trim());
 }
 
 function renderStatCard(label, value) {
@@ -12832,7 +13385,7 @@ async function handleFinancePdfExport() {
     doc.text(`Generado: ${generatedAt}`, 40, 58);
     doc.text(`Origen: ${filters.scope === 'events' ? 'Eventos' : 'Estudio'} / ${scopeLabel}`, 40, 74);
     doc.text(`Periodo: ${financePeriodLabel(filters)} - Tipo: ${filters.type}`, 40, 90);
-    doc.text(`Ingresos: ${showIncomeExpenseAsNE ? 'NE' : money(ingresos)}   Egresos: ${showIncomeExpenseAsNE ? 'NE' : money(egresos)}   Balance: ${money(balance)}`, 40, 106);
+    doc.text(`Ingresos cobrados: ${showIncomeExpenseAsNE ? 'NE' : money(ingresos)}   Egresos pagados: ${showIncomeExpenseAsNE ? 'NE' : money(egresos)}   Flujo neto: ${money(balance)}`, 40, 106);
 
     doc.autoTable({
       head: [isEventFinance
@@ -13009,6 +13562,25 @@ function attachMainDelegation() {
 
   main?.addEventListener('click', (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
+    const trendSeries = e.target.closest('[data-finance-trend-series]');
+    if (trendSeries) {
+      const chartWrap = trendSeries.closest('[data-finance-trend]');
+      const selectedIndex = trendSeries.dataset.financeTrendSeries;
+      const nextIndex = chartWrap?.dataset.financeTrendActive === selectedIndex ? '' : selectedIndex;
+      if (chartWrap) {
+        chartWrap.dataset.financeTrendActive = nextIndex;
+        chartWrap.querySelectorAll('[data-finance-trend-line]').forEach((line) => {
+          line.classList.toggle('is-muted', nextIndex !== '' && line.dataset.financeTrendLine !== nextIndex);
+        });
+        chartWrap.querySelectorAll('[data-finance-trend-series]').forEach((button) => {
+          const isActive = nextIndex !== '' && button.dataset.financeTrendSeries === nextIndex;
+          button.classList.toggle('is-active', isActive);
+          button.classList.toggle('is-muted', nextIndex !== '' && !isActive);
+          button.setAttribute('aria-pressed', String(isActive));
+        });
+      }
+      return;
+    }
     const cloudFolderDownload = e.target.closest("[data-cloud-folder-download]");
     if (cloudFolderDownload) {
       e.preventDefault();
@@ -13503,6 +14075,13 @@ function attachMainDelegation() {
       return;
     }
 
+    const financeMovementView = e.target.closest('select[data-action="finance-movement-view"]');
+    if (financeMovementView) {
+      setPersistedDataValue('financeMovementView', financeMovementView.value);
+      navigate(state.activeSection);
+      return;
+    }
+
     const collabFinanceEvent = e.target.closest('select[data-action="collab-finance-event"]');
     if (collabFinanceEvent) {
       setPersistedDataValue('collabFinanceEventId', collabFinanceEvent.value);
@@ -13619,6 +14198,11 @@ function attachMainDelegation() {
       return;
     }
 
+    if (form.dataset.form === 'finance-goals') {
+      handleFinanceGoalsSave(form);
+      return;
+    }
+
     if (state.viewAs?.active) {
       showToast('La vista como usuario es de solo lectura.', 'error');
       return;
@@ -13641,6 +14225,24 @@ function attachMainDelegation() {
       handleErpForm(form);
     }
   });
+}
+
+function handleFinanceGoalsSave(form) {
+  const filters = state.data.erpFinanceFilters ?? getFinanceFilters();
+  const values = formValues(form);
+  const goalsByStudio = persistedDataValue('financeGoalsByStudio', {});
+  const nextGoals = {
+    income: Math.max(0, Number(values.income || 0)),
+    profit: Math.max(0, Number(values.profit || 0)),
+    hours: Math.max(0, Number(values.hours || 0)),
+  };
+  const next = {
+    ...(goalsByStudio && typeof goalsByStudio === 'object' ? goalsByStudio : {}),
+    [filters.studio]: nextGoals,
+  };
+  setPersistedDataValue('financeGoalsByStudio', next);
+  showToast('Metas guardadas en este navegador.', 'success');
+  navigate('erp-finance');
 }
 
 

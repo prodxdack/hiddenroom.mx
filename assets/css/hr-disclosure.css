@@ -1,0 +1,53 @@
+/* Shared Hidden Room disclosure component. */
+.hr-disclosure {
+  overflow: hidden;
+  border: 1px solid var(--hr-border, rgba(255, 255, 255, .14));
+  border-radius: var(--hr-radius-md, 10px);
+  background: var(--hr-surface, #111);
+}
+
+.hr-disclosure > .hr-disclosure__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hr-space-md, 12px);
+  min-height: 38px;
+  padding: 14px 12px 12px;
+  color: var(--hr-text, var(--white));
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  background: transparent;
+}
+
+.hr-disclosure > .hr-disclosure__summary::-webkit-details-marker { display: none; }
+
+.hr-disclosure > .hr-disclosure__summary::after {
+  content: '+';
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hr-border-strong, rgba(255, 255, 255, .24));
+  border-radius: 50%;
+  color: var(--hr-muted, var(--white-dim));
+  font: 500 14px/1 var(--hr-font-mono, var(--font-mono));
+}
+
+.hr-disclosure[open] > .hr-disclosure__summary::after { content: '−'; }
+
+.hr-disclosure > .hr-disclosure__summary:focus-visible {
+  outline: 2px solid var(--hr-accent, var(--red));
+  outline-offset: -2px;
+}
+
+.hr-disclosure > .hr-disclosure__summary > small {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--hr-muted, var(--white-dim));
+  font: 500 10px var(--hr-font-mono, var(--font-mono));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
