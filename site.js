@@ -5,6 +5,8 @@ const HR_SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
 const HR_SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const HR_SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 const HR_CLOUD_ORIGIN = "https://cloud.hiddenroom.mx";
+const HR_PRODUCER_INVITE_CSS = "/store/beat_store/producer-invite.css?v=20261030-beat-store-invite-global-v1";
+const HR_PRODUCER_INVITE_MODULE = "/store/beat_store/producer-invite.js?v=20261030-beat-store-invite-global-v1";
 // Keep the auth session across page changes and deployments.
 // The default storage key is intentional so existing sessions remain valid.
 const HR_SUPABASE_AUTH_OPTIONS = {
@@ -33,6 +35,7 @@ const HR_VIEW_AS_BANNER_POSITION_KEY = "hr_view_as_banner_position";
 const HR_COPY_EDITOR_VISIBLE_KEY = "hr_copy_editor_visible";
 
 let hrViewAsContext = null;
+let hrProducerInviteLoadPromise = null;
 let resolveHrViewAsReady;
 const hrViewAsReady = new Promise((resolve) => {
   resolveHrViewAsReady = resolve;
@@ -749,6 +752,26 @@ function getHiddenRoomSupabaseClient() {
   return window.__hiddenRoomSupabaseClientPromise;
 }
 
+function ensureGlobalProducerInvite() {
+  if (hrProducerInviteLoadPromise) return hrProducerInviteLoadPromise;
+
+  if (!document.getElementById("hr-producer-invite-css")) {
+    const stylesheet = document.createElement("link");
+    stylesheet.id = "hr-producer-invite-css";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = HR_PRODUCER_INVITE_CSS;
+    document.head.appendChild(stylesheet);
+  }
+
+  hrProducerInviteLoadPromise = import(HR_PRODUCER_INVITE_MODULE).catch((error) => {
+    hrProducerInviteLoadPromise = null;
+    console.error("[HR] No se pudo cargar el modal global de invitación:", error);
+    throw error;
+  });
+
+  return hrProducerInviteLoadPromise;
+}
+
 window.HiddenRoomSupabase = window.HiddenRoomSupabase || {
   url: HR_SUPABASE_URL,
   anonKey: HR_SUPABASE_ANON_KEY,
@@ -1299,6 +1322,8 @@ async function hydrateGlobalSession() {
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user || null;
     if (!user) {
+      document.getElementById("hr-beat-store-invite-modal")?.remove();
+      document.body.classList.remove("hr-overlay-open");
       clearViewAsSelection();
       syncViewAsNavigation(null);
       renderViewAsBanner(null);
@@ -1413,6 +1438,7 @@ async function hydrateGlobalSession() {
     sessionTargets.forEach((target) => { target.hidden = false; });
     drawerTargets.forEach((target) => { target.hidden = false; });
     setGlobalAuthState("authenticated");
+    void ensureGlobalProducerInvite();
     renderGlobalNotifications(notifications);
     showGlobalInstagramUsernamePrompt(profile, user, supabase);
   } catch (error) {
