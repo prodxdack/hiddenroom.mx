@@ -1,46 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Documentos oficiales de Hidden Room">
+  <meta name="description" content="Documentos oficiales de Hidden Room disponibles desde Raíz Cloud.">
   <meta property="og:title" content="Hidden Room | Documentos">
-  <meta property="og:description" content="Consulta y descarga los documentos oficiales de Hidden Room.">
+  <meta property="og:description" content="Consulta los documentos oficiales publicados en Raíz Cloud.">
   <meta property="og:image" content="https://hiddenroom.mx/assets/img/social_preview.webp">
-  <meta property="og:url" content="https://hiddenroom.mx/docs">
+  <meta property="og:url" content="https://hiddenroom.mx/docs/">
   <meta property="og:type" content="website">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Hidden Room | Documentos">
-  <meta name="twitter:description" content="Consulta y descarga los documentos oficiales de Hidden Room.">
-  <meta name="twitter:image" content="https://hiddenroom.mx/assets/img/social_preview.webp">
+  <meta name="robots" content="index, follow">
   <title>Hidden Room | Documentos</title>
   <link rel="icon" type="image/webp" href="/assets/img/orange_logo.webp">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Space+Grotesk:wght@400;500;600;700&family=Unbounded:wght@200;400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles-20260809.css?v=20261020-production-mysauth-logo-v1">
-
+  <link rel="stylesheet" href="docs.css?v=20261029-cloud-docs-v2">
 </head>
-<body class="hr-page" data-hr-chrome>
-  <div id="hr-global-nav"></div>
-  <main>
-    <section class="hero" aria-labelledby="docs-title">
-      <div class="hero-bg" aria-hidden="true"></div>
-      <p class="hero-eyebrow">Documentos</p>
-      <h1 class="hero-title" id="docs-title">Términos y Condiciones</h1>
-      <p class="hero-subtitle">
-        Descarga los Términos y Condiciones de la membresía de estudio de Hidden Room.
-      </p>
-      <div class="hero-cta">
-        <a class="btn-primary" href="TyC_MEMBRESI%CC%81A_ESTUDIO.pdf" download>
-          Descargar TyC
-        </a>
-        <a class="btn-outline" href="/">
-          Volver al inicio
-        </a>
-      </div>
-    </section>
+<body class="hr-page docs-page">
+  <main class="docs-library hr-section" aria-labelledby="docs-library-title">
+    <div class="hr-container">
+      <h1 class="sr-only" id="docs-library-title">Documentos</h1>
+      <p class="docs-status sr-only" id="docs-status" role="status" aria-live="polite">Cargando documentos…</p>
+      <div class="docs-list db-card-list" id="docs-list" aria-live="polite" aria-busy="true"></div>
+    </div>
   </main>
-  <script src="../site.js?v=20261026-session-persistence-v1"></script>
+
+  <script type="module" src="docs.js?v=20261029-cloud-docs-v2"></script>
 </body>
 </html>

@@ -2336,6 +2336,76 @@ async function downloadPublic(req, res, url) {
   return downloadFile(user, req, res, tokenUrl);
 }
 
+const PUBLIC_DOCS_PATH = '/docs';
+
+function publicDocsFileUrl(name, mode) {
+  const encodedName = encodeURIComponent(name);
+  return `${CLOUD_HIDDENROOM_URL.replace(/\/$/, '')}/api/public-docs/file?name=${encodedName}&mode=${mode}`;
+}
+
+async function listPublicDocs(res) {
+  const root = await getRealRoot(CLOUD_ROOT);
+  const docsRoot = path.resolve(root, `.${PUBLIC_DOCS_PATH}`);
+  assertInsideRoot(root, docsRoot);
+  const entries = await fsp.readdir(docsRoot, { withFileTypes: true }).catch((error) => {
+    if (error?.code === 'ENOENT') return [];
+    throw error;
+  });
+  const files = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.pdf') continue;
+    try {
+      const { child } = await resolveSafeChild(root, PUBLIC_DOCS_PATH, entry.name, { mustExist: true });
+      const stats = await fsp.stat(child);
+      if (!stats.isFile()) continue;
+      files.push({
+        name: entry.name,
+        size: stats.size,
+        modified: stats.mtime.toISOString(),
+        view_url: publicDocsFileUrl(entry.name, 'view'),
+        download_url: publicDocsFileUrl(entry.name, 'download'),
+      });
+    } catch {
+      // Skip files that disappear or fail the Cloud root containment check.
+    }
+  }
+  files.sort((left, right) => left.name.localeCompare(right.name, 'es-MX'));
+  send(res, 200, JSON.stringify({ success: true, path: PUBLIC_DOCS_PATH, files }), {
+    ...PUBLIC_CORS_HEADERS,
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'public, max-age=60',
+  });
+}
+
+async function streamPublicDoc(req, res, url) {
+  const name = safeChildName(url.searchParams.get('name'));
+  if (path.extname(name).toLowerCase() !== '.pdf') {
+    const error = new Error('Solo se pueden publicar archivos PDF.');
+    error.status = 404;
+    throw error;
+  }
+  const root = await getRealRoot(CLOUD_ROOT);
+  const { child } = await resolveSafeChild(root, PUBLIC_DOCS_PATH, name, { mustExist: true });
+  const stats = await fsp.stat(child);
+  if (!stats.isFile()) {
+    const error = new Error('El documento no está disponible.');
+    error.status = 404;
+    throw error;
+  }
+  const mode = url.searchParams.get('mode') === 'download' ? 'download' : 'view';
+  const encoded = encodeURIComponent(name).replace(/['()]/g, escape).replace(/\*/g, '%2A');
+  const safeName = name
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '_')
+    .replace(/["\\\r\n]/g, '_') || 'document.pdf';
+  return streamFile(req, res, child, stats, {
+    ...PUBLIC_CORS_HEADERS,
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `${mode === 'view' ? 'inline' : 'attachment'}; filename="${safeName}"; filename*=UTF-8''${encoded}`,
+    'Cache-Control': 'public, max-age=60',
+  });
+}
+
 async function assertAcademiaFileAccess(req, storagePaths) {
   const token = getBearerToken(req);
   if (!token) { const err = new Error('Sesion requerida.'); err.status = 401; throw err; }
@@ -2470,6 +2540,12 @@ async function route(req, res) {
     if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/api/shared-file') return await streamSharedFile(req, res, url);
     if (url.pathname === '/api/shared-file' && req.method === 'OPTIONS') return send(res, 204, '', PUBLIC_CORS_HEADERS);
     if (url.pathname === '/health') return sendJson(res, 200, { ok: true, service: 'mysauth-cloud' });
+    if (url.pathname === '/api/public-docs' || url.pathname === '/api/public-docs/file') {
+      if (req.method === 'OPTIONS') return send(res, 204, '', PUBLIC_CORS_HEADERS);
+      if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/api/public-docs') return await listPublicDocs(res);
+      if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/api/public-docs/file') return await streamPublicDoc(req, res, url);
+      return failPublic(res, 405, 'Método no permitido.');
+    }
     if (url.pathname.startsWith('/api/beat-store')) {
       if (req.method === 'OPTIONS') return send(res, 204, '', PUBLIC_CORS_HEADERS);
       if (req.method === 'POST' && url.pathname === '/api/beat-store/cover') return await uploadBeatCover(await requireCloudUser(req), req, res);
