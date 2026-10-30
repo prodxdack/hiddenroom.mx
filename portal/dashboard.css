@@ -1102,6 +1102,7 @@
   justify-items: start;
   gap: 10px;
   min-width: 0;
+  width: 76px;
 }
 
 .db-profile__avatar > img {
@@ -1114,6 +1115,26 @@
 
 .portal-profile-avatar-editor {
   max-width: min(280px, calc(100vw - 40px));
+}
+
+.portal-profile-avatar-actions {
+  width: max-content;
+}
+
+.portal-profile-avatar-actions .producer-avatar-change {
+  min-height: 28px;
+  padding: 6px 8px;
+  font-size: 9px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.db-profile__header {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--hr-space-lg);
+  min-width: 0;
 }
 
 .db-profile__info {
@@ -3940,16 +3961,13 @@ input[data-user-search] {
 }
 
 .db-section--overview .db-card--profile .db-card__inner {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--hr-space-lg);
+  display: block;
   padding: var(--hr-space-xl);
 }
 
 .db-section--overview .db-profile__avatar {
-  width: 76px;
-  height: 76px;
+  width: 64px;
+  height: 64px;
   border: 2px solid var(--hr-red);
   border-radius: 50%;
   background: color-mix(in srgb, var(--hr-red) 13%, var(--hr-surface-2));
@@ -3959,6 +3977,19 @@ input[data-user-search] {
 
 .db-section--overview .db-profile__info {
   gap: var(--hr-space-md);
+}
+
+.db-section--overview .db-profile__header {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.db-section--overview .db-profile__avatar-wrap {
+  width: 64px;
+}
+
+.db-section--overview .db-profile__meta {
+  width: 100%;
+  margin-top: var(--hr-space-lg);
 }
 
 .db-section--overview .db-profile__name {
@@ -3988,10 +4019,19 @@ input[data-user-search] {
 
 .db-section--overview .db-profile__row dd {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
   color: var(--hr-text);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.db-section--overview .db-profile__row--email dd {
+  white-space: normal;
+}
+
+.db-section--overview .db-profile__row--whatsapp dd {
+  white-space: nowrap;
 }
 
 .db-section--overview .db-profile__roles {
@@ -4079,9 +4119,16 @@ input[data-user-search] {
 
 @media (max-width: 640px) {
   .db-section--overview .db-card--profile .db-card__inner {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--hr-space-md);
     padding: var(--hr-space-lg);
+  }
+
+  .db-section--overview .db-profile__header {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: var(--hr-space-md);
+  }
+
+  .db-section--overview .db-profile__avatar-wrap {
+    width: 58px;
   }
 
   .db-section--overview .db-profile__avatar {
@@ -4096,11 +4143,6 @@ input[data-user-search] {
 
   .db-section--overview .db-profile__name {
     font-size: clamp(19px, 6vw, 26px);
-  }
-
-  .db-section--overview .db-profile__meta,
-  .db-section--overview .db-profile__roles {
-    grid-column: 1 / -1;
   }
 
   .db-section--overview .db-profile__meta {
@@ -4642,10 +4684,7 @@ button.hr-resource-card:focus-visible { outline: 2px solid var(--hr-red); outlin
 }
 
 .db-section--client-home .db-client-home-profile .db-card__inner {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--hr-space-lg);
+  display: block;
   padding: var(--hr-space-lg);
 }
 
@@ -4659,7 +4698,17 @@ button.hr-resource-card:focus-visible { outline: 2px solid var(--hr-red); outlin
   box-shadow: 0 0 0 7px color-mix(in srgb, var(--hr-red) 8%, transparent);
 }
 
+.db-section--client-home .db-profile__header {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.db-section--client-home .db-profile__avatar-wrap {
+  width: 64px;
+}
+
 .db-section--client-home .db-profile__meta {
+  width: 100%;
+  margin-top: var(--hr-space-md);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--hr-space-sm) var(--hr-space-lg);
@@ -4674,14 +4723,30 @@ button.hr-resource-card:focus-visible { outline: 2px solid var(--hr-red); outlin
 
 .db-section--client-home .db-profile__row dd {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.db-section--client-home .db-profile__row--email dd {
+  white-space: normal;
+}
+
+.db-section--client-home .db-profile__row--whatsapp dd {
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {
   .db-section--client-home .db-client-home-profile .db-card__inner {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--hr-space-md);
     padding: var(--hr-space-md);
+  }
+
+  .db-section--client-home .db-profile__header {
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: var(--hr-space-md);
+  }
+
+  .db-section--client-home .db-profile__avatar-wrap {
+    width: 54px;
   }
 
   .db-section--client-home .db-profile__avatar {
@@ -4690,14 +4755,10 @@ button.hr-resource-card:focus-visible { outline: 2px solid var(--hr-red); outlin
   }
 
   .db-section--client-home .db-profile__meta {
-    grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--hr-space-md) var(--hr-space-sm);
   }
 
-  .db-section--client-home .db-profile__roles {
-    grid-column: 1 / -1;
-  }
 }
 /* Client home visual proposal: no banner. */
 .db-section--client-home {

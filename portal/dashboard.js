@@ -2943,16 +2943,18 @@ function renderClientOverview() {
     + renderPortalSectionHeader('Cliente', 'Hola, ' + firstName, 'section-client-home-title')
     + '<article class="db-card hr-card db-card--profile hr-profile-card db-client-home-profile" aria-label="Perfil de usuario">'
     + '<div class="db-card__inner hr-profile-card__body">'
+    + '<div class="db-profile__header">'
     + portalProfileAvatarMarkup()
     + '<div class="db-profile__info">'
     + '<h2 class="db-profile__name">' + escapeHTML(user?.display_name ?? '-') + '</h2>'
-    + '<dl class="db-profile__meta">'
-    + '<div class="db-profile__row"><dt>ID</dt><dd>' + escapeHTML(String(user?.user_id ?? '-')) + '</dd></div>'
-    + '<div class="db-profile__row"><dt>Email</dt><dd>' + escapeHTML(user?.email ?? '-') + '</dd></div>'
-    + '<div class="db-profile__row"><dt>WhatsApp</dt><dd>' + escapeHTML(user?.whatsapp ?? '-') + '</dd></div>'
-    + '</dl>'
     + '<div class="db-profile__roles" aria-label="Roles activos">' + roleBadges + '</div>'
-    + '</div></div></article>'
+    + '</div></div>'
+    + '<dl class="db-profile__meta">'
+    + '<div class="db-profile__row db-profile__row--id"><dt>ID</dt><dd>' + escapeHTML(String(user?.user_id ?? '-')) + '</dd></div>'
+    + '<div class="db-profile__row db-profile__row--email"><dt>Email</dt><dd>' + escapeHTML(user?.email ?? '-') + '</dd></div>'
+    + '<div class="db-profile__row db-profile__row--whatsapp"><dt>WhatsApp</dt><dd>' + escapeHTML(user?.whatsapp ?? '-') + '</dd></div>'
+    + '</dl>'
+    + '</div></article>'
     + '<div class="db-client-home-grid">'
     + sections.map((item, index) => '<button class="db-client-home-card' + (item.hasNews ? ' has-news' : '') + '" type="button" data-section="' + escapeAttr(item.section) + '" aria-label="Abrir ' + escapeAttr(item.label) + '">'
       + '<span class="db-client-home-card__icon" aria-hidden="true"><i class="ph ph-' + escapeAttr(item.icon) + '"></i></span>'
@@ -2985,27 +2987,29 @@ function renderOverview() {
 
         <article class="db-card hr-card db-card--profile hr-profile-card" aria-label="Perfil de usuario">
           <div class="db-card__inner hr-profile-card__body">
-            ${portalProfileAvatarMarkup()}
-            <div class="db-profile__info">
+            <div class="db-profile__header">
+              ${portalProfileAvatarMarkup()}
+              <div class="db-profile__info">
               <h2 class="db-profile__name">${escapeHTML(user?.display_name ?? '-')}</h2>
-              <dl class="db-profile__meta">
-                <div class="db-profile__row">
-                  <dt>ID</dt>
-                  <dd>${escapeHTML(String(user?.user_id ?? '-'))}</dd>
-                </div>
-                <div class="db-profile__row">
-                  <dt>Email</dt>
-                  <dd>${escapeHTML(user?.email ?? '-')}</dd>
-                </div>
-                <div class="db-profile__row">
-                  <dt>WhatsApp</dt>
-                  <dd>${escapeHTML(user?.whatsapp ?? '-')}</dd>
-                </div>
-              </dl>
               <div class="db-profile__roles" aria-label="Roles activos">
                 ${roleBadges}
               </div>
+              </div>
             </div>
+            <dl class="db-profile__meta">
+              <div class="db-profile__row db-profile__row--id">
+                <dt>ID</dt>
+                <dd>${escapeHTML(String(user?.user_id ?? '-'))}</dd>
+              </div>
+              <div class="db-profile__row db-profile__row--email">
+                <dt>Email</dt>
+                <dd>${escapeHTML(user?.email ?? '-')}</dd>
+              </div>
+              <div class="db-profile__row db-profile__row--whatsapp">
+                <dt>WhatsApp</dt>
+                <dd>${escapeHTML(user?.whatsapp ?? '-')}</dd>
+              </div>
+            </dl>
           </div>
         </article>
 
