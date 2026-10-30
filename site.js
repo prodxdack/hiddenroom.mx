@@ -4,6 +4,7 @@ const GA_MEASUREMENT_ID = "G-VNHC1Z3FXZ";
 const HR_SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
 const HR_SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const HR_SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+const HR_CLOUD_ORIGIN = "https://cloud.hiddenroom.mx";
 // Keep the auth session across page changes and deployments.
 // The default storage key is intentional so existing sessions remain valid.
 const HR_SUPABASE_AUTH_OPTIONS = {
@@ -1029,7 +1030,14 @@ function globalDisplayName(profile, user) {
 
 function globalAvatarSrc(value) {
   const fallback = "/assets/img/np-negative.webp";
-  const avatar = String(value || "").trim();
+  let avatar = String(value || "").trim();
+  if (/^\/api\/beat-store\/producer-avatar(?:\?|$)/i.test(avatar)) {
+    try {
+      avatar = new URL(avatar, HR_CLOUD_ORIGIN).href;
+    } catch (_error) {
+      return fallback;
+    }
+  }
   if (!/^https?:\/\//i.test(avatar)) return fallback;
 
   try {
@@ -1328,7 +1336,24 @@ async function hydrateGlobalSession() {
       .maybeSingle();
 
     const viewAs = await resolveViewAsContext(supabase, user, profile);
-    const effectiveProfile = viewAs.active ? viewAs.profile : profile;
+    let effectiveProfile = viewAs.active ? viewAs.profile : profile;
+    if (!viewAs.active) {
+      const { data: producerProfiles, error: producerAvatarError } = await supabase
+        .from("producer_profiles")
+        .select("avatar_url")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .not("avatar_url", "is", null)
+        .limit(1);
+      if (producerAvatarError) {
+        console.info("[HR] No fue posible resolver el avatar de productor para el header:", producerAvatarError.message);
+      } else if (producerProfiles?.[0]?.avatar_url) {
+        effectiveProfile = {
+          ...effectiveProfile,
+          avatar_url: producerProfiles[0].avatar_url,
+        };
+      }
+    }
     const effectiveUser = viewAs.active ? viewAs.user : user;
     const effectiveRoles = viewAs.roles || resolveEffectivePermissions(effectiveProfile, []).roles;
     const effectivePermissions = viewAs.permissions || [];
