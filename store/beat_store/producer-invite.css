@@ -109,6 +109,53 @@
 .beat-store-invite-modal__button:disabled:focus-visible { outline: 2px solid var(--hr-muted, #888); outline-offset: 3px; }
 
 @media (max-width: 560px) {
-  .beat-store-invite-modal { align-items: center; padding: 12px; }
-  .beat-store-invite-modal__dialog { padding: 24px 20px; }
+  .beat-store-invite-modal { align-items: center; padding: 10px; }
+  .beat-store-invite-modal__dialog {
+    width: min(340px, calc(100vw - 20px));
+    max-height: calc(100dvh - 20px);
+    gap: 11px;
+    padding: 18px 16px;
+    border-radius: 8px;
+  }
+
+  .beat-store-invite-modal__eyebrow {
+    font-size: 9px;
+    letter-spacing: .12em;
+  }
+
+  .beat-store-invite-modal h2 {
+    gap: 0;
+    font-size: clamp(25px, 8.4vw, 34px);
+    line-height: .94;
+  }
+
+  .beat-store-invite-modal__copy {
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.38;
+  }
+
+  .beat-store-invite-modal__signature { font-size: 11px; }
+
+  .beat-store-invite-modal__legal {
+    gap: 10px;
+    padding-top: 11px;
+  }
+
+  .beat-store-invite-modal__consent {
+    grid-template-columns: 16px 1fr;
+    gap: 8px;
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  .beat-store-invite-modal__consent input {
+    width: 15px;
+    height: 15px;
+  }
+
+  .beat-store-invite-modal__button {
+    min-height: 40px;
+    font-size: 12px;
+  }
 }
