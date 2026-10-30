@@ -18,6 +18,7 @@
 
 import { cloudSourceToFile, createCloudSourcePicker, joinCloudPath, walkCloudSource } from "../assets/js/cloud-source-picker.js?v=20261026-cloud-picker-lock-v1";
 import { getHrDisclosureState, renderHrDisclosure } from "../assets/js/hr-disclosure.js?v=20261028-hr-disclosure-v2";
+import { initProfileAvatarEditor, resolveProfileAvatarUrl } from "../assets/js/profile-avatar-editor.js?v=20261030-profile-avatar-editor-v1";
 
 'use strict';
 
@@ -434,6 +435,8 @@ const state = {
     error: '',
   },
 };
+
+let portalAvatarEditorController = null;
 
 /**
  * Immutable-ish state update.
@@ -2224,6 +2227,9 @@ async function renderSection(sectionKey) {
 
   if (!wrap) return;
 
+  portalAvatarEditorController?.destroy();
+  portalAvatarEditorController = null;
+
   const section = SECTIONS[sectionKey];
   const renderToken = state.renderToken + 1;
   const loadingStartedAt = performance.now();
@@ -2249,6 +2255,7 @@ async function renderSection(sectionKey) {
     wrap.innerHTML = `${renderSessionStaleBanner()}${html}`;
     enhancePasswordToggles(wrap);
     restorePersistedTableSearches(wrap);
+    if (sectionKey === 'overview') initPortalProfileAvatarEditor();
   } catch (error) {
     if (state.renderToken !== renderToken) return;
     console.error('[HR] renderSection:', error);
@@ -2278,6 +2285,99 @@ async function renderSection(sectionKey) {
    Section 7  TOPBAR HELPERS
 ================================================================ */
 
+function portalProfileAvatarUrl(value) {
+  const resolved = resolveProfileAvatarUrl(value, CLOUD_HIDDENROOM_URL);
+  return /^https?:\/\//i.test(resolved) && isBlockedAvatarHost(resolved) ? '' : resolved;
+}
+
+function portalProfileAvatarMarkup(prefix = 'portal-profile-avatar') {
+  const user = state.user || {};
+  const avatarUrl = portalProfileAvatarUrl(user.avatar_url);
+  const fallback = String(user.display_name ?? user.email ?? '?').trim().charAt(0).toUpperCase() || '?';
+  const avatarContent = avatarUrl
+    ? `<img src="${escapeAttr(avatarUrl)}" alt="Foto de perfil" data-portal-profile-avatar-image />`
+    : escapeHTML(fallback);
+  const canEdit = !state.viewAs?.active;
+
+  return `<div class="db-profile__avatar-wrap">
+    <div class="db-profile__avatar" data-portal-profile-avatar-display aria-label="Foto de perfil">
+      ${avatarContent}
+    </div>
+    ${canEdit ? `<div class="producer-avatar-actions portal-profile-avatar-actions">
+      <label class="secondary-button producer-avatar-change" for="${escapeAttr(`${prefix}-file`)}">Cambiar foto<input id="${escapeAttr(`${prefix}-file`)}" type="file" accept="image/*,.jpg,.jpeg,.png,.webp" hidden></label>
+    </div>
+    <div id="${escapeAttr(`${prefix}-editor`)}" class="beat-cover-editor producer-avatar-editor portal-profile-avatar-editor" hidden>
+      <div class="beat-cover-editor__stage" id="${escapeAttr(`${prefix}-stage`)}" aria-label="Recorte de foto de perfil">
+        <img id="${escapeAttr(`${prefix}-preview`)}" alt="Vista previa de la foto de perfil">
+      </div>
+      <div class="beat-cover-editor__controls">
+        <button id="${escapeAttr(`${prefix}-reset`)}" class="secondary-button" type="button">Restablecer recorte</button>
+        <label class="hr-label" for="${escapeAttr(`${prefix}-zoom`)}">Zoom <input id="${escapeAttr(`${prefix}-zoom`)}" type="range" min="1" max="3" step="0.01" value="1"></label>
+        <div class="producer-avatar-editor__actions">
+          <button id="${escapeAttr(`${prefix}-save`)}" class="primary-button" type="button">Guardar foto</button>
+          <button id="${escapeAttr(`${prefix}-cancel`)}" class="secondary-button" type="button">Cancelar</button>
+        </div>
+        <p id="${escapeAttr(`${prefix}-status`)}" class="producer-avatar-status" role="status" aria-live="polite"></p>
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
+function updatePortalProfileAvatarDisplay() {
+  const display = document.querySelector('[data-portal-profile-avatar-display]');
+  if (!display) return;
+  const avatarUrl = portalProfileAvatarUrl(state.user?.avatar_url);
+  if (avatarUrl) {
+    display.innerHTML = `<img src="${escapeAttr(avatarUrl)}" alt="Foto de perfil" data-portal-profile-avatar-image />`;
+    return;
+  }
+  const fallback = String(state.user?.display_name ?? state.user?.email ?? '?').trim().charAt(0).toUpperCase() || '?';
+  display.textContent = fallback;
+}
+
+function initPortalProfileAvatarEditor() {
+  portalAvatarEditorController?.destroy();
+  portalAvatarEditorController = null;
+  if (state.viewAs?.active) return;
+
+  const prefix = 'portal-profile-avatar';
+  const input = document.getElementById(`${prefix}-file`);
+  const editor = document.getElementById(`${prefix}-editor`);
+  if (!input || !editor) return;
+
+  portalAvatarEditorController = initProfileAvatarEditor({
+    input,
+    editor,
+    preview: document.getElementById(`${prefix}-preview`),
+    stage: document.getElementById(`${prefix}-stage`),
+    zoom: document.getElementById(`${prefix}-zoom`),
+    resetButton: document.getElementById(`${prefix}-reset`),
+    cancelButton: document.getElementById(`${prefix}-cancel`),
+    saveButton: document.getElementById(`${prefix}-save`),
+    status: document.getElementById(`${prefix}-status`),
+    onSave: async ({ file, crop }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Sesión requerida para cambiar la foto.');
+      const endpoint = new URL(`${CLOUD_HIDDENROOM_URL.replace(/\/$/, '')}/api/beat-store/producer-avatar`);
+      endpoint.searchParams.set('crop', JSON.stringify(crop));
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+        body: file,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'No se pudo procesar la foto.');
+      state.user.avatar_url = result.avatar_url || state.user.avatar_url;
+      hydrateTopbar();
+      updatePortalProfileAvatarDisplay();
+      showToast('Foto de perfil actualizada.', 'success');
+    },
+  });
+}
+
 function hydrateTopbar() {
   const nameEl   = document.getElementById('js-user-display-name');
   const avatarEl = document.getElementById('js-user-avatar');
@@ -2288,7 +2388,7 @@ function hydrateTopbar() {
   const shortName = String(fullName).trim().split(/\s+/)[0] || 'Usuario';
   if (nameEl) nameEl.textContent = `Hola, ${shortName}`;
   if (avatarEl) {
-    const avatarUrl = String(state.user.avatar_url ?? '').trim();
+    const avatarUrl = portalProfileAvatarUrl(state.user.avatar_url);
     const renderFallback = () => {
       const fallback = document.createElement('img');
       fallback.src = '/assets/img/np-negative.webp';
@@ -2823,7 +2923,7 @@ function renderClientOverview() {
     + renderPortalSectionHeader('Cliente', 'Hola, ' + firstName, 'section-client-home-title')
     + '<article class="db-card hr-card db-card--profile hr-profile-card db-client-home-profile" aria-label="Perfil de usuario">'
     + '<div class="db-card__inner hr-profile-card__body">'
-    + '<div class="db-profile__avatar" aria-hidden="true">' + escapeHTML((user?.display_name ?? user?.email ?? '?')[0].toUpperCase()) + '</div>'
+    + portalProfileAvatarMarkup()
     + '<div class="db-profile__info">'
     + '<h2 class="db-profile__name">' + escapeHTML(user?.display_name ?? '-') + '</h2>'
     + '<dl class="db-profile__meta">'
@@ -2865,9 +2965,7 @@ function renderOverview() {
 
         <article class="db-card hr-card db-card--profile hr-profile-card" aria-label="Perfil de usuario">
           <div class="db-card__inner hr-profile-card__body">
-            <div class="db-profile__avatar" aria-hidden="true">
-              ${escapeHTML((user?.display_name ?? user?.email ?? '?')[0].toUpperCase())}
-            </div>
+            ${portalProfileAvatarMarkup()}
             <div class="db-profile__info">
               <h2 class="db-profile__name">${escapeHTML(user?.display_name ?? '-')}</h2>
               <dl class="db-profile__meta">

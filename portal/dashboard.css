@@ -1097,6 +1097,25 @@
   user-select: none;
 }
 
+.db-profile__avatar-wrap {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.db-profile__avatar > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.portal-profile-avatar-editor {
+  max-width: min(280px, calc(100vw - 40px));
+}
+
 .db-profile__info {
   flex: 1;
   display: flex;

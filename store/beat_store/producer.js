@@ -1,6 +1,7 @@
 
 import { beatCardMarkup as sharedBeatCardMarkup } from "./beat-card.js?v=20261019-beat-card-component-v2";
 import { beatLicenseAssignmentIsSelectable, beatLicenseModalMarkup } from "./license-modal.js?v=20261018-license-request-v10";
+import { initProfileAvatarEditor } from "../../assets/js/profile-avatar-editor.js?v=20261030-profile-avatar-editor-v1";
 
 function resetProducerPageScroll() {
   if (document.body?.dataset.page !== "beat-producer") return;
@@ -32,11 +33,7 @@ const avatarStage = document.getElementById("producer-avatar-stage");
 const avatarZoom = document.getElementById("producer-avatar-zoom");
 const avatarStatus = document.getElementById("producer-avatar-status");
 const state = { profile: null, products: [], assignments: [], isOwner: false };
-let avatarObjectUrl = "";
-const avatarPointers = new Map();
-let avatarPinchStart = null;
-let avatarDragStart = null;
-const avatarCropState = { x: 0.5, y: 0.5, zoom: 1 };
+let avatarEditorController = null;
 
 initProducerPage()
   .then(() => resetProducerPageScroll())
@@ -372,197 +369,39 @@ function syncBeatCardPlayState(event) {
 }
 
 function initAvatarEditor() {
-  if (!state.isOwner || !avatarInput || !avatarEditor || !avatarPreview || !avatarStage) return;
-  avatarInput.addEventListener("change", handleAvatarSelection);
-  document.getElementById("producer-avatar-reset")?.addEventListener("click", resetAvatarCrop);
-  document.getElementById("producer-avatar-cancel")?.addEventListener("click", cancelAvatarSelection);
-  document.getElementById("producer-avatar-save")?.addEventListener("click", saveAvatarSelection);
-  avatarZoom?.addEventListener("input", () => {
-    avatarCropState.zoom = Number(avatarZoom.value) || 1;
-    updateAvatarPreview();
+  if (!state.isOwner || !avatarInput || !avatarEditor || !avatarPreview || !avatarStage || !avatarZoom || !avatarStatus) return;
+  avatarEditorController?.destroy();
+  avatarEditorController = initProfileAvatarEditor({
+    input: avatarInput,
+    editor: avatarEditor,
+    preview: avatarPreview,
+    stage: avatarStage,
+    zoom: avatarZoom,
+    resetButton: document.getElementById("producer-avatar-reset"),
+    cancelButton: document.getElementById("producer-avatar-cancel"),
+    saveButton: document.getElementById("producer-avatar-save"),
+    status: avatarStatus,
+    onSave: async ({ file, crop }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Sesión requerida para cambiar la foto.");
+      const endpoint = new URL(`${CLOUD_ORIGIN}/api/beat-store/producer-avatar`);
+      endpoint.searchParams.set("profile_id", state.profile.id);
+      endpoint.searchParams.set("crop", JSON.stringify(crop));
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": file.type || "application/octet-stream",
+        },
+        body: file,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "No se pudo procesar la foto.");
+      state.profile.avatar_url = result.avatar_url || state.profile.avatar_url;
+      renderProfile(state.profile);
+      showNotice("Foto de perfil actualizada");
+    },
   });
-  avatarStage.addEventListener("pointerdown", handleAvatarPointerDown);
-  avatarStage.addEventListener("pointermove", handleAvatarPointerMove);
-  avatarStage.addEventListener("pointerup", handleAvatarPointerEnd);
-  avatarStage.addEventListener("pointercancel", handleAvatarPointerEnd);
-  avatarStage.addEventListener("wheel", handleAvatarWheel, { passive: false });
-}
-
-function handleAvatarSelection() {
-  const file = avatarInput?.files?.[0];
-  clearAvatarObjectUrl();
-  if (!file) {
-    avatarEditor.hidden = true;
-    return;
-  }
-  if ((!file.type.startsWith("image/") && !/\.(jpg|jpeg|png|webp)$/i.test(file.name)) || file.size > 12 * 1024 * 1024) {
-    setAvatarStatus(file.size > 12 * 1024 * 1024 ? "La imagen supera el límite de 12 MB." : "Selecciona una imagen válida.", true);
-    avatarInput.value = "";
-    avatarEditor.hidden = true;
-    return;
-  }
-  avatarObjectUrl = URL.createObjectURL(file);
-  avatarPreview.src = avatarObjectUrl;
-  avatarPreview.onload = updateAvatarPreview;
-  avatarEditor.hidden = false;
-  setAvatarStatus("");
-  resetAvatarCrop();
-}
-
-function clearAvatarObjectUrl() {
-  if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
-  avatarObjectUrl = "";
-}
-
-function resetAvatarCrop() {
-  avatarCropState.x = 0.5;
-  avatarCropState.y = 0.5;
-  avatarCropState.zoom = 1;
-  if (avatarZoom) avatarZoom.value = "1";
-  updateAvatarPreview();
-}
-
-function avatarImageRatio() {
-  return (avatarPreview?.naturalWidth || 1) / (avatarPreview?.naturalHeight || 1);
-}
-
-function avatarAxisCanMove() {
-  const ratio = avatarImageRatio();
-  const zoom = avatarCropState.zoom;
-  return {
-    x: Math.max(ratio, 1) * zoom > 1.001,
-    y: Math.max(1 / ratio, 1) * zoom > 1.001,
-  };
-}
-
-function clampAvatarCrop() {
-  avatarCropState.zoom = Math.max(1, Math.min(3, avatarCropState.zoom));
-  const movable = avatarAxisCanMove();
-  avatarCropState.x = movable.x ? Math.max(0, Math.min(1, avatarCropState.x)) : 0.5;
-  avatarCropState.y = movable.y ? Math.max(0, Math.min(1, avatarCropState.y)) : 0.5;
-}
-
-function updateAvatarPreview() {
-  if (!avatarPreview) return;
-  clampAvatarCrop();
-  const { x, y, zoom } = avatarCropState;
-  const extraPan = zoom > 1 ? ((zoom - 1) / zoom) * 50 : 0;
-  avatarPreview.style.objectPosition = `${x * 100}% ${y * 100}%`;
-  avatarPreview.style.transform = `translate(${(0.5 - x) * extraPan}%, ${(0.5 - y) * extraPan}%) scale(${zoom})`;
-}
-
-function avatarPointerSnapshot(event) {
-  return { x: event.clientX, y: event.clientY };
-}
-
-function avatarPointerDistance() {
-  const points = Array.from(avatarPointers.values());
-  if (points.length < 2) return 0;
-  return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-}
-
-function handleAvatarPointerDown(event) {
-  if (!avatarPreview?.src || !avatarStage) return;
-  event.preventDefault();
-  avatarStage.setPointerCapture?.(event.pointerId);
-  avatarStage.classList.add("is-dragging");
-  avatarPointers.set(event.pointerId, avatarPointerSnapshot(event));
-  if (avatarPointers.size === 2) {
-    avatarPinchStart = { distance: avatarPointerDistance(), zoom: avatarCropState.zoom };
-    avatarDragStart = null;
-    return;
-  }
-  avatarDragStart = { x: event.clientX, y: event.clientY, cropX: avatarCropState.x, cropY: avatarCropState.y };
-}
-
-function handleAvatarPointerMove(event) {
-  if (!avatarPointers.has(event.pointerId) || !avatarStage) return;
-  event.preventDefault();
-  avatarPointers.set(event.pointerId, avatarPointerSnapshot(event));
-  if (avatarPointers.size >= 2 && avatarPinchStart?.distance) {
-    avatarCropState.zoom = avatarPinchStart.zoom * (avatarPointerDistance() / avatarPinchStart.distance);
-    if (avatarZoom) avatarZoom.value = String(avatarCropState.zoom);
-    updateAvatarPreview();
-    return;
-  }
-  if (!avatarDragStart) return;
-  const rect = avatarStage.getBoundingClientRect();
-  const movable = avatarAxisCanMove();
-  const dragRangeX = movable.x ? Math.max(0.25, avatarCropState.zoom - 0.5) : Number.POSITIVE_INFINITY;
-  const dragRangeY = movable.y ? Math.max(0.25, avatarCropState.zoom - 0.5) : Number.POSITIVE_INFINITY;
-  avatarCropState.x = avatarDragStart.cropX - ((event.clientX - avatarDragStart.x) / Math.max(1, rect.width) / dragRangeX);
-  avatarCropState.y = avatarDragStart.cropY - ((event.clientY - avatarDragStart.y) / Math.max(1, rect.height) / dragRangeY);
-  updateAvatarPreview();
-}
-
-function handleAvatarPointerEnd(event) {
-  avatarPointers.delete(event.pointerId);
-  avatarStage?.releasePointerCapture?.(event.pointerId);
-  if (avatarPointers.size < 2) avatarPinchStart = null;
-  if (!avatarPointers.size) {
-    avatarDragStart = null;
-    avatarStage?.classList.remove("is-dragging");
-  }
-}
-
-function handleAvatarWheel(event) {
-  if (!avatarPreview?.src) return;
-  event.preventDefault();
-  avatarCropState.zoom += event.deltaY < 0 ? 0.08 : -0.08;
-  if (avatarZoom) avatarZoom.value = String(avatarCropState.zoom);
-  updateAvatarPreview();
-}
-
-function currentAvatarCrop() {
-  clampAvatarCrop();
-  return { x: avatarCropState.x, y: avatarCropState.y, size: 1 / avatarCropState.zoom };
-}
-
-async function saveAvatarSelection() {
-  const file = avatarInput?.files?.[0];
-  if (!file || !state.isOwner) return;
-  const saveButton = document.getElementById("producer-avatar-save");
-  saveButton.disabled = true;
-  setAvatarStatus("Procesando foto...");
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Sesión requerida para cambiar la foto.");
-    const endpoint = new URL(`${CLOUD_ORIGIN}/api/beat-store/producer-avatar`);
-    endpoint.searchParams.set("profile_id", state.profile.id);
-    endpoint.searchParams.set("crop", JSON.stringify(currentAvatarCrop()));
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        "Content-Type": file.type || "application/octet-stream",
-      },
-      body: file,
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "No se pudo procesar la foto.");
-    state.profile.avatar_url = result.avatar_url || state.profile.avatar_url;
-    renderProfile(state.profile);
-    cancelAvatarSelection();
-    showNotice("Foto de perfil actualizada");
-  } catch (error) {
-    setAvatarStatus(error.message || "No se pudo guardar la foto.", true);
-  } finally {
-    saveButton.disabled = false;
-  }
-}
-
-function cancelAvatarSelection() {
-  clearAvatarObjectUrl();
-  if (avatarInput) avatarInput.value = "";
-  if (avatarPreview) avatarPreview.removeAttribute("src");
-  if (avatarEditor) avatarEditor.hidden = true;
-  setAvatarStatus("");
-}
-
-function setAvatarStatus(message, isError = false) {
-  if (!avatarStatus) return;
-  avatarStatus.textContent = message;
-  avatarStatus.classList.toggle("is-error", Boolean(isError));
 }
 
 function openLicensesModal(productId) {

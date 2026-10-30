@@ -855,13 +855,9 @@ function parseBeatCoverCrop(raw) {
   return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)), size: Math.max(0.05, Math.min(1, size)) };
 }
 
-function producerProfileId(req, url) {
+function optionalProducerProfileId(req, url) {
   const raw = String(req.headers['x-producer-profile-id'] || url?.searchParams.get('profile_id') || '').trim();
-  if (!raw) {
-    const err = new Error('Perfil de productor requerido.');
-    err.status = 400;
-    throw err;
-  }
+  if (!raw) return '';
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)) {
     const err = new Error('Perfil de productor invalido.');
     err.status = 400;
@@ -1042,6 +1038,23 @@ async function fetchProducerProfileForAvatar(profileId, userId) {
   return Array.isArray(rows) ? rows[0] : null;
 }
 
+async function updateUserAvatarReferences(userId, avatarUrl, profileId = '') {
+  await supabaseFetch(`/rest/v1/users?id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    headers: { ...supabaseHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ avatar_url: avatarUrl }),
+  });
+
+  const profileFilter = profileId
+    ? `id=eq.${encodeURIComponent(profileId)}&user_id=eq.${encodeURIComponent(userId)}`
+    : `user_id=eq.${encodeURIComponent(userId)}`;
+  await supabaseFetch(`/rest/v1/producer_profiles?${profileFilter}`, {
+    method: 'PATCH',
+    headers: { ...supabaseHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ avatar_url: avatarUrl }),
+  });
+}
+
 async function writeProducerAvatarImage(tempPath, crop, outputPath) {
   let meta;
   try {
@@ -1073,9 +1086,9 @@ async function writeProducerAvatarImage(tempPath, crop, outputPath) {
 }
 
 async function uploadProducerAvatar(user, req, res, url) {
-  const profileId = producerProfileId(req, url);
-  const profile = await fetchProducerProfileForAvatar(profileId, user.id);
-  if (!profile) {
+  const profileId = optionalProducerProfileId(req, url);
+  const profile = profileId ? await fetchProducerProfileForAvatar(profileId, user.id) : null;
+  if (profileId && !profile) {
     const err = new Error('Solo el propietario puede cambiar la foto de este productor.');
     err.status = 403;
     throw err;
@@ -1106,11 +1119,7 @@ async function uploadProducerAvatar(user, req, res, url) {
     await fsp.rename(tempOutput, outputPath);
     outputWritten = true;
     const avatarUrl = producerAvatarPublicPath(relativeFile);
-    await supabaseFetch(`/rest/v1/producer_profiles?id=eq.${encodeURIComponent(profileId)}&user_id=eq.${encodeURIComponent(user.id)}`, {
-      method: 'PATCH',
-      headers: { ...supabaseHeaders(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ avatar_url: avatarUrl }),
-    });
+    await updateUserAvatarReferences(user.id, avatarUrl, profileId);
     sendJson(res, 201, { success: true, avatar_url: avatarUrl });
   } catch (err) {
     if (outputWritten && outputPath) await fsp.rm(outputPath, { force: true }).catch(() => {});
