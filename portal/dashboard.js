@@ -2002,14 +2002,34 @@ async function bootstrapSession() {
     }
 
     const resolvedProfile = await ensureCurrentUserOperationalId(authUser, profile);
-
-    // Merge auth user as fallback so email/id are always available
-    const actualUser = resolvedProfile ? { ...authUser, ...resolvedProfile } : authUser;
     const viewAsContext = await window.HiddenRoomViewAs?.resolveForAdmin?.(
       supabase,
       authUser,
       resolvedProfile,
     );
+
+    // Beat Store and Portal share the producer avatar. Older uploads may only
+    // exist in producer_profiles, so prefer that managed avatar when present.
+    let producerAvatarUrl = '';
+    if (!viewAsContext?.active) {
+      const { data: producerProfiles, error: producerAvatarError } = await supabase
+        .from('producer_profiles')
+        .select('avatar_url')
+        .eq('user_id', authUser.id)
+        .eq('is_active', true)
+        .not('avatar_url', 'is', null)
+        .limit(1);
+      if (producerAvatarError) {
+        console.info('[HR] producer avatar fallback skipped:', producerAvatarError.message);
+      } else {
+        producerAvatarUrl = String(producerProfiles?.[0]?.avatar_url || '').trim();
+      }
+    }
+
+    // Merge auth user as fallback so email/id are always available
+    const actualUser = resolvedProfile
+      ? { ...authUser, ...resolvedProfile, ...(producerAvatarUrl ? { avatar_url: producerAvatarUrl } : {}) }
+      : { ...authUser, ...(producerAvatarUrl ? { avatar_url: producerAvatarUrl } : {}) };
     const effectiveProfile = viewAsContext?.active ? viewAsContext.profile : resolvedProfile;
     const mergedUser = viewAsContext?.active
       ? { ...viewAsContext.user, ...effectiveProfile }
