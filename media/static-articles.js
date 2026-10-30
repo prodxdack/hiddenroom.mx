@@ -25,7 +25,7 @@ async function loadEditorialArticles() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     if (payload.schemaVersion !== 1 || !Array.isArray(payload.articles) || !payload.articles.length) throw new Error("Contenido editorial inválido");
-    grid.innerHTML = payload.articles.map(articleCard).join("");
+    grid.innerHTML = articleCard(payload.articles[0]);
     status.hidden = true;
   } catch (error) {
     console.error("[Media] contenido editorial:", error);

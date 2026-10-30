@@ -8,41 +8,49 @@ import {
 } from "./config.js?v=20261015-view-as-readonly-v1";
 
 const PAGE_SIZE = 9;
+const STATIC_ARTICLES_URL = "./articles/index.json";
 const state = { page: 0, loading: false, done: false };
 const postsGrid = document.getElementById("posts-grid");
-const featuredGrid = document.getElementById("featured-grid");
-const featuredSection = document.getElementById("featured-section");
 const status = document.getElementById("media-status");
 const loadMore = document.getElementById("load-more");
 const search = document.getElementById("media-search");
-const category = document.getElementById("media-category");
+const categoryNav = document.getElementById("media-category-nav");
+let currentCategory = new URLSearchParams(window.location.search).get("category") || "";
+let staticPostsPromise;
 
-MEDIA_CATEGORIES.forEach((name) => {
-  const option = document.createElement("option");
-  option.value = name;
-  option.textContent = name;
-  category.append(option);
-});
+const categoryNames = [...new Set([
+  "",
+  "Studio",
+  "Escena",
+  ...MEDIA_CATEGORIES,
+])];
 
-const requestedCategory = new URLSearchParams(window.location.search).get("category");
-if (MEDIA_CATEGORIES.includes(requestedCategory)) category.value = requestedCategory;
+function renderCategoryNav() {
+  categoryNav.innerHTML = categoryNames.map((name) => `
+    <button type="button" class="${name === currentCategory ? "is-active" : ""}" data-category="${escapeHTML(name)}" aria-pressed="${name === currentCategory}">
+      ${escapeHTML(name || "Todo")}
+    </button>
+  `).join("");
+}
 
 function card(post, featured = false) {
+  const date = post.published_at || post.created_at;
+  const href = escapeHTML(post.url || postURL(post.slug));
   const cover = post.cover_image
     ? `<img src="${escapeHTML(post.cover_image)}" alt="" loading="lazy">`
     : `<div class="media-card__placeholder" aria-hidden="true">HR</div>`;
 
   return `
     <article class="media-card hr-media-card hr-hover-lift ${featured ? "media-card--featured" : ""}">
-      <a class="media-card__image" href="${postURL(post.slug)}">${cover}</a>
+      <a class="media-card__image" href="${href}">${cover}</a>
       <div class="media-card__body hr-card-body hr-stack">
         <div class="media-card__meta hr-cluster">
-          <span>${escapeHTML(post.category)}</span>
-          <time datetime="${escapeHTML(post.published_at || post.created_at)}">${formatDate(post.published_at || post.created_at)}</time>
+          <span>${escapeHTML(post.category || "Media")}</span>
+          <time datetime="${escapeHTML(date || "")}">${formatDate(date)}</time>
         </div>
-        <h3><a href="${postURL(post.slug)}">${escapeHTML(post.title)}</a></h3>
+        <h3><a href="${href}">${escapeHTML(post.title)}</a></h3>
         <p>${escapeHTML(post.excerpt || "")}</p>
-        <a class="media-card__read hr-btn hr-btn-ghost hr-btn-sm" href="${postURL(post.slug)}">Leer artículo →</a>
+        <a class="media-card__read hr-btn hr-btn-ghost hr-btn-sm" href="${href}">Leer artículo →</a>
       </div>
     </article>
   `;
@@ -56,25 +64,42 @@ function filteredQuery() {
     .lte("published_at", new Date().toISOString())
     .order("published_at", { ascending: false });
 
-  if (category.value) query = query.eq("category", category.value);
+  if (currentCategory) query = query.eq("category", currentCategory);
   const term = search.value.trim().replace(/[,%()]/g, " ");
   if (term) query = query.or(`title.ilike.%${term}%,excerpt.ilike.%${term}%`);
   return query;
 }
 
-async function loadFeatured() {
-  const { data, error } = await supabase
-    .from("media_posts")
-    .select("slug,title,excerpt,cover_image,category,published_at,created_at")
-    .eq("status", "published")
-    .eq("featured", true)
-    .lte("published_at", new Date().toISOString())
-    .order("published_at", { ascending: false })
-    .limit(2);
+async function getStaticPosts() {
+  staticPostsPromise ||= fetch(STATIC_ARTICLES_URL, { headers: { Accept: "application/json" } })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (payload.schemaVersion !== 1 || !Array.isArray(payload.articles)) throw new Error("Contenido editorial inválido");
+      return payload.articles.map((article) => ({
+        id: `static-${article.slug}`,
+        slug: article.slug,
+        title: article.title,
+        excerpt: article.excerpt,
+        cover_image: article.coverImage,
+        category: article.category,
+        author_name: article.author,
+        published_at: article.publishedAt,
+        created_at: article.publishedAt,
+        url: article.url,
+      }));
+    });
+  return staticPostsPromise;
+}
 
-  if (error || !data?.length) return;
-  featuredGrid.innerHTML = data.map((post) => card(post, true)).join("");
-  featuredSection.hidden = false;
+function filterStaticPosts(posts) {
+  const term = search.value.trim().toLowerCase();
+  return posts.filter((post) => {
+    const matchesCategory = !currentCategory || post.category === currentCategory;
+    const matchesTerm = !term || [post.title, post.excerpt, post.category]
+      .some((value) => String(value || "").toLowerCase().includes(term));
+    return matchesCategory && matchesTerm;
+  });
 }
 
 async function loadPosts(reset = false) {
@@ -83,7 +108,7 @@ async function loadPosts(reset = false) {
     state.page = 0;
     state.done = false;
     status.hidden = false;
-    postsGrid.innerHTML = '<div class="hr-skeleton-grid hr-skeleton-grid--media" aria-hidden="true">' + Array.from({ length: 3 }, () => '<article class="hr-skeleton-card"><div class="hr-skeleton-block hr-skeleton-block--media"></div><div class="hr-skeleton-line hr-skeleton-line--short"></div><div class="hr-skeleton-line"></div><div class="hr-skeleton-line hr-skeleton-line--medium"></div></article>').join("") + '</div>';
+    postsGrid.innerHTML = '<div class="hr-skeleton-grid hr-skeleton-grid--media" aria-hidden="true">' + Array.from({ length: 3 }, () => '<article class="hr-skeleton-card"><div class="hr-skeleton-block hr-skeleton-block--media"></div><div class="hr-skeleton-line hr-skeleton-line--short"></div><div class="hr-skeleton-line"></div><div class="hr-skeleton-line hr-skeleton-line--medium"></div></article>').join("") + "</div>";
   }
   if (state.done) return;
 
@@ -93,27 +118,44 @@ async function loadPosts(reset = false) {
   loadMore.hidden = true;
 
   const from = state.page * PAGE_SIZE;
-  const { data, error, count } = await filteredQuery().range(from, from + PAGE_SIZE - 1);
+  let { data, error, count } = await filteredQuery().range(from, from + PAGE_SIZE - 1);
+  let source = "database";
+
+  if (error || (!data?.length && from === 0)) {
+    try {
+      const fallback = filterStaticPosts(await getStaticPosts());
+      data = fallback.slice(from, from + PAGE_SIZE);
+      count = fallback.length;
+      error = null;
+      source = "static";
+    } catch (fallbackError) {
+      console.error("[Media] archivo estático:", fallbackError);
+    }
+  }
+
   state.loading = false;
   postsGrid.classList.remove("hr-filtering");
+  postsGrid.querySelector(".hr-skeleton-grid")?.remove();
 
   if (error) {
     console.error("[Media] feed:", error);
-    status.textContent = "El archivo Media estará disponible al aplicar la migración de Supabase.";
+    status.textContent = "No se pudo cargar el archivo Media.";
     return;
   }
 
-  postsGrid.querySelector(".hr-skeleton-grid")?.remove();
-  postsGrid.insertAdjacentHTML("beforeend", (data || []).map((post) => card(post)).join(""));
+  const rendered = data || [];
+  postsGrid.insertAdjacentHTML("beforeend", rendered.map((post) => card(post)).join(""));
   state.page += 1;
-  state.done = from + (data?.length || 0) >= (count || 0) || (data?.length || 0) < PAGE_SIZE;
+  state.done = from + rendered.length >= (count || 0) || rendered.length < PAGE_SIZE;
 
-  if (!postsGrid.children.length) {
+  if (!postsGrid.querySelector(".media-card")) {
     status.hidden = true;
     postsGrid.innerHTML = '<div class="hr-empty-state"><p>No encontramos publicaciones con esos filtros.</p></div>';
   } else {
     status.hidden = false;
-    status.textContent = `${count || postsGrid.children.length} publicaciones en el archivo.`;
+    status.textContent = source === "static"
+      ? `${count || 0} publicaciones en el archivo.`
+      : `${count || postsGrid.querySelectorAll(".media-card").length} publicaciones en el archivo.`;
   }
   loadMore.hidden = state.done;
 }
@@ -121,13 +163,21 @@ async function loadPosts(reset = false) {
 let searchTimer;
 const hrMediaLifecycle = () => window.clearTimeout(searchTimer);
 window.HiddenRoomApp?.register(hrMediaLifecycle);
+
+renderCategoryNav();
+categoryNav.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-category]");
+  if (!button) return;
+  currentCategory = button.dataset.category || "";
+  renderCategoryNav();
+  loadPosts(true);
+});
+
 search.addEventListener("input", () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => loadPosts(true), 280);
 });
-category.addEventListener("change", () => loadPosts(true));
 loadMore.addEventListener("click", () => loadPosts());
 
-loadFeatured();
 loadPosts(true);
 revealMediaAdminLink();
