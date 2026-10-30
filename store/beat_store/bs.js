@@ -3,6 +3,7 @@ import { beatCardMarkup as sharedBeatCardMarkup } from "./beat-card.js?v=2026101
 import { beatLicenseAssignmentIsSelectable, beatLicenseModalMarkup } from "./license-modal.js?v=20261018-license-request-v10";
 
 const SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
+const BEAT_STORE_INVITE_NOTIFICATION_TYPE = "beat-store-invite";
 import { createCloudSourcePicker } from '../../assets/js/cloud-source-picker.js';
 
 const SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
@@ -1641,6 +1642,7 @@ async function handleBeatUploadPermissionClick(event) {
   const button = event.target.closest("[data-beat-upload-permission-toggle]");
   if (!button || !state.isAdmin) return;
   const userId = button.dataset.beatUploadPermissionToggle;
+  const targetUser = state.beatUploadUsers.find((user) => String(user.id) === userId);
   const granted = button.dataset.granted === "true";
   button.disabled = true;
   const result = granted
@@ -1651,7 +1653,23 @@ async function handleBeatUploadPermissionClick(event) {
     button.disabled = false;
     return;
   }
-  showNotice(granted ? "Permiso de subida revocado." : "Usuario autorizado para subir beats.");
+  if (granted) {
+    showNotice("Permiso de subida revocado.");
+  } else {
+    const username = String(targetUser?.username || targetUser?.display_name || "productor").trim().replace(/^@+/, "") || "productor";
+    const { error: invitationError } = await supabase.from("notifications").insert({
+      user_id: userId,
+      message: `Invitación a Beat Store para @${username}`,
+      type: BEAT_STORE_INVITE_NOTIFICATION_TYPE,
+      read: false,
+    });
+    showNotice(
+      invitationError
+        ? "Usuario autorizado, pero no se pudo enviar la invitación."
+        : "Usuario autorizado y bienvenida enviada.",
+      Boolean(invitationError),
+    );
+  }
   await refreshBeatUploadPermissions();
 }
 
