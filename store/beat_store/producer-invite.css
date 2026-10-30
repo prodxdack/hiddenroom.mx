@@ -10,7 +10,7 @@
 .beat-store-invite-modal__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, .48);
+  background: rgba(0, 0, 0, .60);
   backdrop-filter: blur(4px) saturate(.9);
 }
 
