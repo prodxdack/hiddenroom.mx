@@ -7,7 +7,9 @@ window.HiddenRoomApp?.register(() => {
   closeInviteModal();
 });
 
-initProducerInvite().catch(() => {});
+initProducerInvite().catch((error) => {
+  console.error("[HR] No se pudo cargar la invitación de Beat Store:", error);
+});
 
 async function initProducerInvite() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -15,16 +17,17 @@ async function initProducerInvite() {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("username,roles")
+    .select("user_id,username,roles")
     .eq("id", session.user.id)
     .maybeSingle();
 
   if (isAdmin(profile?.roles)) return;
 
+  const notificationUserIds = [...new Set([session.user.id, profile?.user_id].filter(Boolean).map(String))];
   const { data: notification, error } = await supabase
     .from("notifications")
     .select("id")
-    .eq("user_id", session.user.id)
+    .in("user_id", notificationUserIds)
     .eq("type", BEAT_STORE_INVITE_TYPE)
     .eq("read", false)
     .order("created_at", { ascending: true })
@@ -104,8 +107,7 @@ async function acceptInviteModal(notificationId) {
     await supabase
       .from("notifications")
       .update({ read: true })
-      .eq("id", notificationId)
-      .eq("user_id", session.user.id);
+      .eq("id", notificationId);
   }
   closeInviteModal();
 }
