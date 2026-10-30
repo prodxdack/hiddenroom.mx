@@ -119,7 +119,7 @@ function renderPosts() {
 
   tableBody.innerHTML = rows.length ? rows.map((post) => `
     <tr>
-      <td>
+      <td data-label="Publicación">
         <div class="admin-post-cell">
           ${post.cover_image
             ? `<img src="${escapeHTML(post.cover_image)}" alt="">`
@@ -130,10 +130,10 @@ function renderPosts() {
           </div>
         </div>
       </td>
-      <td><span class="status-pill status-pill--${escapeHTML(post.status)} hr-badge ${post.status === "published" ? "hr-badge-success" : post.status === "draft" ? "hr-badge-info" : "hr-badge-muted"}">${statusLabel(post.status)}</span>${post.featured ? '<br><small class="admin-featured hr-badge hr-badge-info">Destacado</small>' : ""}</td>
-      <td>${formatDate(post.published_at || post.updated_at)}</td>
-      <td>${Number(post.views || 0).toLocaleString("es-MX")}</td>
-      <td>
+      <td data-label="Estado"><span class="status-pill status-pill--${escapeHTML(post.status)} hr-badge ${post.status === "published" ? "hr-badge-success" : post.status === "draft" ? "hr-badge-info" : "hr-badge-muted"}">${statusLabel(post.status)}</span>${post.featured ? '<br><small class="admin-featured hr-badge hr-badge-info">Destacado</small>' : ""}</td>
+      <td data-label="Fecha">${formatDate(post.published_at || post.updated_at)}</td>
+      <td data-label="Vistas">${Number(post.views || 0).toLocaleString("es-MX")}</td>
+      <td data-label="Acciones">
         <div class="admin-row-actions">
           <a class="hr-btn hr-btn-ghost hr-btn-sm" href="?view=editor&id=${encodeURIComponent(post.id)}">Editar</a>
           ${post.status === "published" ? `<a class="hr-btn hr-btn-ghost hr-btn-sm" href="/media/post.html?slug=${encodeURIComponent(post.slug)}" target="_blank" rel="noopener">Ver</a>` : ""}

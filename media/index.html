@@ -19,6 +19,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;500;600;700&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles-20260809.css?v=20261020-production-mysauth-logo-v1">
+  <link rel="stylesheet" href="./media.css?v=20261030-media-editorial-layout-v1">
 
 </head>
 <body class="media-body hr-page" data-hr-chrome data-hr-context="media" data-hr-accent="media">
@@ -27,20 +28,23 @@
   <div class="cursor-ring" id="cursorRing" aria-hidden="true"></div>
 
   <main>
-    <section class="media-featured hr-section" aria-labelledby="editorial-title">
-      <div class="hr-container hr-stack hr-stack-xl">
-        <div class="media-section-heading hr-cluster">
-          <h2 id="editorial-title" class="hr-section-title">PRUEBA</h2>
+    <section class="media-hero" aria-labelledby="editorial-title">
+      <div class="hr-container media-hero__inner">
+        <div class="media-hero__copy">
+          <span class="media-kicker">Hidden Room / Media</span>
+          <h1 id="editorial-title">Historias para la escena.</h1>
+          <p>Producción musical, estudio, licencias y cultura independiente desde la casa del under.</p>
+          <nav class="media-hero__links" aria-label="Explora Hidden Room">
+            <a class="hr-btn hr-btn-cyan hr-btn-sm" href="/store/beat_store/">Beat Store</a>
+            <a class="hr-btn hr-btn-ghost hr-btn-sm" href="/studio/">Studio</a>
+            <a class="hr-btn hr-btn-ghost hr-btn-sm" href="/academia/">Academia</a>
+          </nav>
         </div>
-        <p class="hr-subtitle">Contenido de Hidden Room sobre producción, estudio y escena, con un siguiente paso claro para seguir avanzando.</p>
+        <div class="media-hero__articles">
+          <span class="media-kicker">En portada</span>
+          <div id="editorial-grid" class="featured-grid hr-card-grid"></div>
+        </div>
         <div id="editorial-status" class="media-status hr-muted" role="status">Cargando contenido editorial…</div>
-        <div id="editorial-grid" class="featured-grid hr-card-grid"></div>
-        <nav class="article-explore hr-cluster" aria-label="Explora el ecosistema Hidden Room">
-          <a class="hr-btn hr-btn-ghost hr-btn-sm" href="/store/beat_store/"><span>Beat Store</span><small>Licencias y beats</small></a>
-          <a class="hr-btn hr-btn-ghost hr-btn-sm" href="/studio/"><span>Studio</span><small>Grabación y producción</small></a>
-          <a class="hr-btn hr-btn-ghost hr-btn-sm" href="/academia/"><span>Academia</span><small>Aprendizaje</small></a>
-          <a class="hr-btn hr-btn-ghost hr-btn-sm" href="/tickets/"><span>Events</span><small>Escena y accesos</small></a>
-        </nav>
       </div>
     </section>
 
@@ -56,8 +60,17 @@
     <section class="media-feed hr-section" aria-labelledby="feed-title">
       <div class="hr-container hr-stack hr-stack-xl">
       <div class="media-section-heading hr-cluster">
-        <h2 id="feed-title" class="hr-section-title">Últimas publicaciones</h2>
+        <div><span class="media-kicker">Archivo editorial</span><h2 id="feed-title" class="hr-section-title">Últimas publicaciones</h2></div>
       </div>
+
+      <nav class="media-category-nav" aria-label="Categorías de Media">
+        <a href="/media/">Todas</a>
+        <a href="?category=Noticias">Noticias</a>
+        <a href="?category=Coberturas">Coberturas</a>
+        <a href="?category=Entrevistas">Entrevistas</a>
+        <a href="?category=Artículos">Artículos</a>
+        <a href="?category=Live%20Sessions">Live Sessions</a>
+      </nav>
 
       <form class="media-toolbar hr-filterbar" id="media-filters" role="search">
         <label class="media-search hr-search">
@@ -86,7 +99,7 @@
 
 <script src="../site.js?v=20261030-global-avatar-v1"></script>
   <script src="../analytics/analytics.js?v=20260830-analytics-minimum"></script>
-  <script type="module" src="./media.js?v=20260808-phase3-polish"></script>
+  <script type="module" src="./media.js?v=20261030-media-editorial-layout-v1"></script>
   <script type="module" src="./static-articles.js?v=20260830-media-seo"></script>
 <script src="/spa.js?v=20261004-site-copy-editor-v1"></script>
 </body>

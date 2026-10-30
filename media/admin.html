@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;500;600;700&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles-20260809.css?v=20261020-production-mysauth-logo-v1">
+  <link rel="stylesheet" href="./admin.css?v=20261030-media-cms-layout-v1">
 
 </head>
 <body class="media-admin hr-page" data-hr-chrome data-hr-context="media" data-hr-accent="media">
@@ -68,15 +69,6 @@
                 <span>Título</span>
                 <input id="post-title-input" class="hr-input" name="title" required maxlength="180" placeholder="Título de la publicación">
               </label>
-              <label class="admin-field hr-field">
-                <span>Slug</span>
-                <div class="slug-field"><span>hiddenroom.mx/media/</span><input id="post-slug" class="hr-input" name="slug" required maxlength="120"></div>
-              </label>
-              <label class="admin-field hr-field">
-                <span>Extracto / Meta description</span>
-                <textarea id="post-excerpt-input" class="hr-textarea" name="excerpt" maxlength="280" rows="4" placeholder="Resumen breve para tarjetas, buscadores y redes"></textarea>
-                <small class="hr-help"><b id="excerpt-count">0</b>/280</small>
-              </label>
 
               <div class="admin-field hr-field">
                 <span>Contenido</span>
@@ -95,26 +87,40 @@
             </div>
 
             <aside class="editor-side hr-stack-lg">
-              <label class="admin-field hr-field">
-                <span>Categoría</span>
-                <select id="post-category-input" class="hr-select" name="category" required></select>
-              </label>
-              <label class="admin-field hr-field">
-                <span>Tags</span>
-                <input id="post-tags" class="hr-input" name="tags" placeholder="rap, cdmx, live session">
-                <small class="hr-help">Separados por comas.</small>
-              </label>
-              <label class="admin-field hr-field">
-                <span>Autor visible</span>
-                <input id="post-author-name" class="hr-input" name="author_name" maxlength="100">
-              </label>
-              <label class="admin-field hr-field">
-                <span>Imagen de portada</span>
-                <input id="post-cover-file" class="hr-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
-                <input id="post-cover-url" class="hr-input" name="cover_image" type="url" placeholder="https://…">
-              </label>
-              <div id="cover-preview" class="cover-preview hr-card">Sin portada</div>
-              <label class="admin-check hr-checkbox"><input id="post-featured" name="featured" type="checkbox"><span>Destacar publicación</span></label>
+              <details class="editor-settings" open>
+                <summary>Configuración y SEO</summary>
+                <div class="editor-settings__body hr-stack-lg">
+                  <label class="admin-field hr-field">
+                    <span>Slug</span>
+                    <div class="slug-field"><span>hiddenroom.mx/media/</span><input id="post-slug" class="hr-input" name="slug" required maxlength="120"></div>
+                  </label>
+                  <label class="admin-field hr-field">
+                    <span>Extracto / Meta description</span>
+                    <textarea id="post-excerpt-input" class="hr-textarea" name="excerpt" maxlength="280" rows="4" placeholder="Resumen breve para tarjetas, buscadores y redes"></textarea>
+                    <small class="hr-help"><b id="excerpt-count">0</b>/280</small>
+                  </label>
+                  <label class="admin-field hr-field">
+                    <span>Categoría</span>
+                    <select id="post-category-input" class="hr-select" name="category" required></select>
+                  </label>
+                  <label class="admin-field hr-field">
+                    <span>Tags</span>
+                    <input id="post-tags" class="hr-input" name="tags" placeholder="rap, cdmx, live session">
+                    <small class="hr-help">Separados por comas.</small>
+                  </label>
+                  <label class="admin-field hr-field">
+                    <span>Autor visible</span>
+                    <input id="post-author-name" class="hr-input" name="author_name" maxlength="100">
+                  </label>
+                  <label class="admin-field hr-field">
+                    <span>Imagen de portada</span>
+                    <input id="post-cover-file" class="hr-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+                    <input id="post-cover-url" class="hr-input" name="cover_image" type="url" placeholder="https://…">
+                  </label>
+                  <div id="cover-preview" class="cover-preview hr-card">Sin portada</div>
+                  <label class="admin-check hr-checkbox"><input id="post-featured" name="featured" type="checkbox"><span>Destacar publicación</span></label>
+                </div>
+              </details>
               <div class="editor-actions hr-form-actions">
                 <button class="admin-secondary hr-btn hr-btn-secondary hr-btn-block" type="submit" data-save-status="draft">Guardar borrador</button>
                 <button class="admin-primary hr-btn hr-btn-cyan hr-btn-block" type="submit" data-save-status="published">Publicar</button>

@@ -82,6 +82,7 @@ async function loadPosts(reset = false) {
   if (reset) {
     state.page = 0;
     state.done = false;
+    status.hidden = false;
     postsGrid.innerHTML = '<div class="hr-skeleton-grid hr-skeleton-grid--media" aria-hidden="true">' + Array.from({ length: 3 }, () => '<article class="hr-skeleton-card"><div class="hr-skeleton-block hr-skeleton-block--media"></div><div class="hr-skeleton-line hr-skeleton-line--short"></div><div class="hr-skeleton-line"></div><div class="hr-skeleton-line hr-skeleton-line--medium"></div></article>').join("") + '</div>';
   }
   if (state.done) return;
@@ -108,9 +109,10 @@ async function loadPosts(reset = false) {
   state.done = from + (data?.length || 0) >= (count || 0) || (data?.length || 0) < PAGE_SIZE;
 
   if (!postsGrid.children.length) {
-    status.textContent = "No encontramos publicaciones con esos filtros.";
-    postsGrid.innerHTML = '<div class="hr-empty-state"><h2>Sin publicaciones</h2><p>Prueba otra búsqueda o categoría.</p></div>';
+    status.hidden = true;
+    postsGrid.innerHTML = '<div class="hr-empty-state"><p>No encontramos publicaciones con esos filtros.</p></div>';
   } else {
+    status.hidden = false;
     status.textContent = `${count || postsGrid.children.length} publicaciones en el archivo.`;
   }
   loadMore.hidden = state.done;
