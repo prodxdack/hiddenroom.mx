@@ -17,6 +17,7 @@ description: Hidden Room cache-busting workflow for GitHub Pages static assets. 
 5. Validate changed HTML/JS:
    - Run `node --check portal/dashboard.js` when dashboard JS changed.
    - Run `git diff --check -- <changed files>`.
+   - When the modal coordinator or prompt flow changes, bump the query string for `site.js`, the route module, and any shared legal-service module that changed.
 6. Mention cache impact in the final response. For iPhone Safari, recommend closing/reopening Safari or using a private tab if CDN/browser cache still lingers briefly.
 
 ## Current Entry Points

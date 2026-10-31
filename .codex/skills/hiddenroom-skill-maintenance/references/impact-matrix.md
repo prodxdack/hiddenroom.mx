@@ -20,6 +20,23 @@ Update:
 - `hiddenroom-performance` when loading/runtime behavior changes.
 - `hiddenroom-documentation` when routes or setup steps change.
 
+## Shared Modal and Overlay Coordination
+
+Changed files:
+
+- `site.js` shared modal/session coordination.
+- `assets/js/legal-service.js` legal consent dialogs.
+- `portal/dashboard.js` onboarding/profile gates.
+- Route modules that open invitations, confirmations, or blocking dialogs.
+
+Update:
+
+- `hiddenroom-frontend` and its modal-coordination reference.
+- `hiddenroom-dashboard` when Portal gates or dashboard prompts are affected.
+- `hiddenroom-design-system` for overlay, focus, scroll-lock, or responsive dialog behavior.
+- `hiddenroom-testing` for no-overlap, queue order, cancellation, logout, and SPA teardown checks.
+- `hiddenroom-cache-busting` when published JS or CSS references change.
+
 ## Design System
 
 Changed files:

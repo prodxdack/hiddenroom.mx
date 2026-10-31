@@ -13,6 +13,7 @@ description: Hidden Room Portal dashboard skill for the vanilla SPA in portal/da
 4. Add new views through existing render/bind/load patterns instead of introducing a second router.
 5. Preserve IDs, `data-*` hooks, table column names, and Supabase field names unless a migration updates them.
 6. Validate with `node --check portal/dashboard.js` and inspect `/portal/dashboard.html`.
+7. When adding a blocking dashboard modal, enqueue it through `window.HiddenRoomModalQueue`; wait for Portal onboarding and profile-completeness prompts before invitations, legal consent, or feature dialogs.
 
 ## Architecture
 
@@ -33,3 +34,4 @@ Keep existing `users.roles` and `user_permissions` reads for UI compatibility, b
 ## References
 
 Read `references/dashboard-sections.md` before changing section routing, permission gates, or ERP views.
+Read `../hiddenroom-frontend/references/modal-coordination.md` before adding or changing dashboard onboarding, profile, legal, invitation, or confirmation modals.

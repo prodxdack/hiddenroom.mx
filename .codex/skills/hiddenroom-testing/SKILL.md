@@ -10,11 +10,12 @@ description: Hidden Room testing and validation skill for JavaScript syntax chec
 1. Run targeted syntax checks for changed JavaScript.
 2. Serve the repo with a static local server for browser checks.
 3. Smoke-test affected routes and shared chrome.
-4. Run Supabase authorization tests only against Supabase Local with synthetic fixtures; never use production data for test setup or mutation.
-5. Exercise `anon`, client A, client B, collaborator, and admin. Verify both allowed and denied paths, including client A attempting to read or change client B's data.
-6. Automate RLS and privilege assertions for tables, column grants, `security_invoker` views, RPC execution grants, and ownership predicates.
-7. Test Edge Functions locally, including missing/invalid JWTs, insufficient privilege, cross-user identifiers, and approved callers; privileged functions must authorize before service-role work.
-8. Document any untested credential-dependent step without substituting production for local validation.
+4. For any blocking modal change, verify only one dialog/overlay is active at a time and the next queued dialog opens only after the previous one resolves or is cancelled.
+5. Run Supabase authorization tests only against Supabase Local with synthetic fixtures; never use production data for test setup or mutation.
+6. Exercise `anon`, client A, client B, collaborator, and admin. Verify both allowed and denied paths, including client A attempting to read or change client B's data.
+7. Automate RLS and privilege assertions for tables, column grants, `security_invoker` views, RPC execution grants, and ownership predicates.
+8. Test Edge Functions locally, including missing/invalid JWTs, insufficient privilege, cross-user identifiers, and approved callers; privileged functions must authorize before service-role work.
+9. Document any untested credential-dependent step without substituting production for local validation.
 
 ## Quick Commands
 

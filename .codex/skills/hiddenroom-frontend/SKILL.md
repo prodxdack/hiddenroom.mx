@@ -15,6 +15,10 @@ description: Hidden Room frontend engineering for the static GitHub Pages app. U
 6. Validate changed JavaScript with `node --check <file>`.
 7. Serve the repo with a static server and inspect the affected route after user-facing UI changes.
 
+## Modal coordination
+
+All blocking modals must use the shared `window.HiddenRoomModalQueue` and return a Promise for their complete lifecycle. Do not add route-specific queues or stack modals with z-indexes. Follow `references/modal-coordination.md`; profile/onboarding gates must finish before invitations, legal consent, or informational prompts.
+
 ## Architecture
 
 - Root marketing site: `index.html`, `site.js`, `styles.css`.
@@ -37,3 +41,4 @@ description: Hidden Room frontend engineering for the static GitHub Pages app. U
 ## References
 
 Read `references/frontend-map.md` when the task spans multiple modules or touches shared navigation/session behavior.
+Read `references/modal-coordination.md` when adding or changing any modal, onboarding gate, legal consent prompt, invitation, drawer-like dialog, or SPA route teardown.

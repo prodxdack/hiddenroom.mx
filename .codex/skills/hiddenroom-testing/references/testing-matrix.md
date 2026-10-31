@@ -37,6 +37,7 @@ Look for overflow, overlapping nav, broken drawers, clipped buttons, unreadable 
 - Media: public list, post detail, admin auth gate, create/edit draft, cover upload.
 - Tickets: event list, generation, folio ranges, QR validation, print/download.
 - Portal: login/register/recovery, section navigation, notifications, profile, membership and ERP tables.
+- Portal modal sequence: onboarding (if required) → Instagram → WhatsApp/celular → legal consent or invitation; test cancellation, logout, SPA teardown, and a second pending invitation without overlap.
 - Memberships: no `anon` access to `membership_dashboard`, self-only client access, global admin access, cross-client denial, historical-data preservation, and parity between Cliente > Membresías and ERP > BB.DD. > Membresía.
 - Payments: provider-specific checkout/webhook tests; Beat Store uses Mercado Pago, while other products may use Stripe. Preserve order and fulfillment behavior.
 - Downloads and exclusive licenses: owner-only access, denied cross-client access, release/entitlement rules, exclusive-license uniqueness, and admin management paths.

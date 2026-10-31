@@ -13,6 +13,7 @@ description: Hidden Room design system guidance for hr-* tokens, global CSS, pag
 4. Preserve dashboard `db-*` classes when logic or dynamic rendering depends on them.
 5. Check responsive behavior at about 390px, 768px, and 1440px.
 6. Avoid changing print rules for Tickets unless the task explicitly includes ticket print output.
+7. For modal UI, preserve shared overlay layering and scroll-lock behavior; styling must not be used to solve simultaneous modal ownership. New blocking dialogs follow `window.HiddenRoomModalQueue` and the shared accessibility contract.
 
 ## Core Rules
 
@@ -29,3 +30,4 @@ The design system status doc says Home, Media, Media Admin/CMS, Kairen, Store, T
 ## References
 
 Read `references/design-system.md` for token groups, migration cautions, and quick visual checks.
+Read `../hiddenroom-frontend/references/modal-coordination.md` for modal lifecycle, focus, queue, and teardown rules.
