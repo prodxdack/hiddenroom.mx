@@ -772,6 +772,10 @@ function ensureGlobalProducerInvite() {
   return hrProducerInviteLoadPromise;
 }
 
+function shouldLoadGlobalProducerInvite() {
+  return document.body?.dataset.hrContext !== "docs";
+}
+
 window.HiddenRoomSupabase = window.HiddenRoomSupabase || {
   url: HR_SUPABASE_URL,
   anonKey: HR_SUPABASE_ANON_KEY,
@@ -1438,7 +1442,7 @@ async function hydrateGlobalSession() {
     sessionTargets.forEach((target) => { target.hidden = false; });
     drawerTargets.forEach((target) => { target.hidden = false; });
     setGlobalAuthState("authenticated");
-    void ensureGlobalProducerInvite();
+    if (shouldLoadGlobalProducerInvite()) void ensureGlobalProducerInvite();
     renderGlobalNotifications(notifications);
     showGlobalInstagramUsernamePrompt(profile, user, supabase);
   } catch (error) {
