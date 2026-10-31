@@ -56,31 +56,31 @@ values (
 );
 
 insert into public.legal_document_rules (document_id, module_key, action_key, role_key, is_required)
-values ('00000000-0000-4000-8000-00000000e101', 'beatstore', 'publish_beat', 'client', true);
+values ('00000000-0000-4000-8000-00000000e101', 'testlegal', 'accept_test', 'client', true);
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000e001', true);
 
-select is((select count(*)::integer from public.legal_get_requirements('beatstore', 'publish_beat')), 1, 'client sees the applicable published requirement');
-select is((select bool_and(not has_accepted) from public.legal_get_requirements('beatstore', 'publish_beat')), true, 'new client is pending before acceptance');
+select is((select count(*)::integer from public.legal_get_requirements('testlegal', 'accept_test')), 1, 'client sees the applicable published requirement');
+select is((select bool_and(not has_accepted) from public.legal_get_requirements('testlegal', 'accept_test')), true, 'new client is pending before acceptance');
 
 select ok((select id is not null from public.legal_accept_document(
   '00000000-0000-4000-8000-00000000e101',
   '00000000-0000-4000-8000-00000000e102',
-  'beatstore',
-  'publish_beat',
+  'testlegal',
+  'accept_test',
   'checkbox',
   'synthetic-test-agent',
   null
 )), 'acceptance RPC returns a server-created acceptance');
 select is((select count(*)::integer from public.legal_acceptances), 1, 'accepted version is visible to its owner');
-select is((select bool_and(has_accepted) from public.legal_get_requirements('beatstore', 'publish_beat')), true, 'accepted client is no longer pending');
+select is((select bool_and(has_accepted) from public.legal_get_requirements('testlegal', 'accept_test')), true, 'accepted client is no longer pending');
 
 select ok((select id is not null from public.legal_accept_document(
   '00000000-0000-4000-8000-00000000e101',
   '00000000-0000-4000-8000-00000000e102',
-  'beatstore',
-  'publish_beat',
+  'testlegal',
+  'accept_test',
   'checkbox',
   'synthetic-test-agent',
   null
@@ -88,12 +88,12 @@ select ok((select id is not null from public.legal_accept_document(
 select is((select count(*)::integer from public.legal_acceptances), 1, 'repeated acceptance does not duplicate evidence');
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000e002', true);
-select is((select bool_and(not has_accepted) from public.legal_get_requirements('beatstore', 'publish_beat')), true, 'second client remains pending independently');
+select is((select bool_and(not has_accepted) from public.legal_get_requirements('testlegal', 'accept_test')), true, 'second client remains pending independently');
 select is((select count(*)::integer from public.legal_acceptances), 0, 'second client cannot read first client acceptance');
 
 select throws_ok(
   $$insert into public.legal_acceptances (auth_user_id, document_id, version_id, module_key, action_key, method, content_sha256)
-    values ('00000000-0000-4000-8000-00000000e002', '00000000-0000-4000-8000-00000000e101', '00000000-0000-4000-8000-00000000e102', 'beatstore', 'publish_beat', 'checkbox', repeat('b', 64))$$,
+    values ('00000000-0000-4000-8000-00000000e002', '00000000-0000-4000-8000-00000000e101', '00000000-0000-4000-8000-00000000e102', 'testlegal', 'accept_test', 'checkbox', repeat('b', 64))$$,
   '42501', null, 'authenticated cannot insert acceptance evidence directly'
 );
 

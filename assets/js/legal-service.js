@@ -105,6 +105,7 @@ export function createLegalService(supabase) {
 
     async createSignedUrl(storagePath, expiresIn = 3600) {
       if (!storagePath) return null;
+      if (/^https?:\/\//i.test(String(storagePath).trim())) return String(storagePath).trim();
       const { data, error } = await supabase.storage
         .from(LEGAL_STORAGE_BUCKET)
         .createSignedUrl(storagePath, expiresIn);

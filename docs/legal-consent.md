@@ -48,7 +48,7 @@ Al intentar enviar un beat a revisión, el productor verá el gate únicamente s
 - `legal_admin_create_rule(...)`: registra reglas de aplicación.
 - `legal_admin_pending_users(document_id)`: lista usuarios con aceptación pendiente de la versión publicada.
 
-Las tablas de aceptación no permiten inserts directos desde el navegador; la escritura pasa por el RPC validado. Los PDFs se guardan en el bucket privado `legal-documents`.
+Las tablas de aceptación no permiten inserts directos desde el navegador; la escritura pasa por el RPC validado. Los PDFs subidos desde Portal se guardan en el bucket privado `legal-documents`; también se pueden vincular fuentes PDF externas controladas desde la versión legal.
 
 ## Pruebas
 
