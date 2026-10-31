@@ -4,6 +4,12 @@ import { beatLicenseAssignmentIsSelectable, beatLicenseModalMarkup } from "./lic
 
 const SUPABASE_URL = "https://rpcunbkstadgngqrjafp.supabase.co";
 const BEAT_STORE_INVITE_NOTIFICATION_TYPE = "beat-store-invite";
+const BEAT_UPLOAD_PERMISSION_KEY = "beats.upload";
+const BEAT_UPLOAD_PLAN_OPTIONS = [
+  { value: "socio_embajador", label: "Socio Embajador" },
+  { value: "pago", label: "Pago" },
+];
+const BEAT_UPLOAD_PLAN_LABELS = Object.fromEntries(BEAT_UPLOAD_PLAN_OPTIONS.map((option) => [option.value, option.label]));
 import { createCloudSourcePicker } from '../../assets/js/cloud-source-picker.js';
 
 const SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
@@ -219,6 +225,7 @@ async function initBeatStore() {
   beatMercadoPagoForm?.addEventListener("submit", handleMercadoPagoConfigSubmit);
   beatLicenseForm?.addEventListener("submit", handleBeatLicenseSubmit);
   beatLicenseList?.addEventListener("click", handleBeatLicenseListClick);
+  beatLicenseModal?.addEventListener("submit", handleBeatUploadAccessModalSubmit);
   beatLicenseCancel?.addEventListener("click", resetBeatLicenseForm);
   beatLicenseForm?.addEventListener("input", updateBeatLicenseRangeWarning);
   document.getElementById("beat-license-unlimited")?.addEventListener("change", syncBeatLicenseStreamLimitState);
@@ -601,12 +608,45 @@ async function fetchProducerProfiles(includeInactive = false) {
   return data ?? [];
 }
 
+function normalizePermissionKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function beatUploadPermissionRowsForUser(userId) {
+  return state.beatUploadPermissions.filter((permission) => String(permission.user_id) === String(userId));
+}
+
+function beatUploadAccessConfig(userId) {
+  const keys = beatUploadPermissionRowsForUser(userId)
+    .map((permission) => normalizePermissionKey(permission.permission_key));
+  const planKey = keys.find((key) => key.startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.plan.`));
+  const limitKey = keys.find((key) => key.startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.limit.`));
+  const plan = planKey?.slice(`${BEAT_UPLOAD_PERMISSION_KEY}.plan.`.length) || "";
+  const limitValue = limitKey?.slice(`${BEAT_UPLOAD_PERMISSION_KEY}.limit.`.length) || "";
+  return {
+    plan: BEAT_UPLOAD_PLAN_LABELS[plan] ? plan : "",
+    limit: /^\d+$/.test(limitValue) ? limitValue : "",
+  };
+}
+
+function beatUploadPermissionIdsForUser(userId, includeBase = true) {
+  return beatUploadPermissionRowsForUser(userId)
+    .filter((permission) => {
+      const key = normalizePermissionKey(permission.permission_key);
+      return (includeBase && key === BEAT_UPLOAD_PERMISSION_KEY)
+        || key.startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.plan.`)
+        || key.startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.limit.`);
+    })
+    .map((permission) => permission.id)
+    .filter(Boolean);
+}
+
 async function fetchBeatUploadAccess(includeAdmin = false, searchTerm = "") {
   if (!includeAdmin) return { users: [], permissions: [], error: null };
   const { data: permissions, error: permissionsError } = await supabase
     .from("user_permissions")
     .select("id, user_id, permission_key")
-    .eq("permission_key", "beats.upload");
+    .like("permission_key", `${BEAT_UPLOAD_PERMISSION_KEY}%`);
   if (permissionsError) return { users: [], permissions: [], error: permissionsError };
 
   const normalizedSearch = String(searchTerm || "").trim();
@@ -619,7 +659,10 @@ async function fetchBeatUploadAccess(includeAdmin = false, searchTerm = "") {
   if (safeSearch) {
     userQuery = userQuery.or(`display_name.ilike.%${safeSearch}%,username.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
   } else {
-    const authorizedIds = permissions.map((permission) => String(permission.user_id)).filter(Boolean);
+    const authorizedIds = permissions
+      .filter((permission) => normalizePermissionKey(permission.permission_key) === BEAT_UPLOAD_PERMISSION_KEY)
+      .map((permission) => String(permission.user_id))
+      .filter(Boolean);
     const adminUsers = await supabase
       .from("users")
       .select("id, display_name, username, email, roles")
@@ -1632,45 +1675,134 @@ function renderBeatUploadPermissions() {
     const userId = String(user.id || "");
     const isAdmin = String(user.roles || "").split(",").map((role) => role.trim().toLowerCase()).includes("admin");
     const hasPermission = isAdmin || granted.has(userId);
+    const accessConfig = beatUploadAccessConfig(userId);
     const label = user.display_name || user.username || user.email || "Usuario";
     const detail = [user.username ? `@${String(user.username).replace(/^@+/, "")}` : "", user.email || ""].filter(Boolean).join(" · ");
-    return `<article class="admin-product-row beat-admin-row"><div><span class="product-category">${isAdmin ? "Admin · acceso automático" : hasPermission ? "Autorizado" : "Sin autorización"}</span><h3>${escapeHtml(label)}</h3><p>${escapeHtml(detail || userId)}</p></div><div class="admin-actions">${isAdmin ? '<span class="db-field__hint">Admin</span>' : `<button class="secondary-button" type="button" data-beat-upload-permission-toggle="${escapeHtml(userId)}" data-granted="${hasPermission}">${hasPermission ? "Revocar" : "Autorizar"}</button>`}</div></article>`;
+    const accessSummary = hasPermission && !isAdmin
+      ? `${accessConfig.plan ? escapeHtml(BEAT_UPLOAD_PLAN_LABELS[accessConfig.plan]) : "Plan pendiente"} · ${accessConfig.limit ? `${escapeHtml(accessConfig.limit)} subidas` : "Límite pendiente"}`
+      : "";
+    return `<article class="admin-product-row beat-admin-row"><div><span class="product-category">${isAdmin ? "Admin · acceso automático" : hasPermission ? "Autorizado" : "Sin autorización"}</span><h3>${escapeHtml(label)}</h3><p>${escapeHtml(detail || userId)}</p>${accessSummary ? `<p class="beat-admin-row__music">${accessSummary}</p>` : ""}</div><div class="admin-actions">${isAdmin ? '<span class="db-field__hint">Admin</span>' : `<button class="secondary-button" type="button" data-beat-upload-permission-config="${escapeHtml(userId)}">${hasPermission ? "Editar acceso" : "Configurar acceso"}</button>${hasPermission ? `<button class="secondary-button" type="button" data-beat-upload-permission-revoke="${escapeHtml(userId)}">Revocar</button>` : ""}`}</div></article>`;
   }).join("");
 }
 
 async function handleBeatUploadPermissionClick(event) {
-  const button = event.target.closest("[data-beat-upload-permission-toggle]");
-  if (!button || !state.isAdmin) return;
-  const userId = button.dataset.beatUploadPermissionToggle;
+  const configButton = event.target.closest("[data-beat-upload-permission-config]");
+  const revokeButton = event.target.closest("[data-beat-upload-permission-revoke]");
+  if (!state.isAdmin || (!configButton && !revokeButton)) return;
+  if (configButton) {
+    openBeatUploadAccessModal(configButton.dataset.beatUploadPermissionConfig, configButton);
+    return;
+  }
+
+  const button = revokeButton;
+  const userId = button.dataset.beatUploadPermissionRevoke;
   const targetUser = state.beatUploadUsers.find((user) => String(user.id) === userId);
-  const granted = button.dataset.granted === "true";
   button.disabled = true;
-  const result = granted
-    ? await supabase.from("user_permissions").delete().eq("user_id", userId).eq("permission_key", "beats.upload")
-    : await supabase.from("user_permissions").insert({ user_id: userId, permission_key: "beats.upload" });
+  const permissionIds = beatUploadPermissionIdsForUser(userId);
+  const result = permissionIds.length
+    ? await supabase.from("user_permissions").delete().in("id", permissionIds)
+    : { error: null };
   if (result.error) {
     showNotice(result.error.message || "No se pudo actualizar el permiso.", true);
     button.disabled = false;
     return;
   }
-  if (granted) {
-    showNotice("Permiso de subida revocado.");
-  } else {
-    const username = String(targetUser?.username || targetUser?.display_name || "productor").trim().replace(/^@+/, "") || "productor";
-    const { error: invitationError } = await supabase.from("notifications").insert({
-      user_id: userId,
-      message: `Invitación a Beat Store para @${username}`,
-      type: BEAT_STORE_INVITE_NOTIFICATION_TYPE,
-      read: false,
-    });
-    showNotice(
-      invitationError
-        ? "Usuario autorizado, pero no se pudo enviar la invitación."
-        : "Usuario autorizado y bienvenida enviada.",
-      Boolean(invitationError),
-    );
-  }
+  showNotice(`Acceso de ${String(targetUser?.display_name || targetUser?.username || "productor")} revocado.`);
   await refreshBeatUploadPermissions();
+}
+
+function openBeatUploadAccessModal(userId, trigger = null) {
+  if (!beatLicenseModal || !beatLicenseModalContent) return;
+  const user = state.beatUploadUsers.find((candidate) => String(candidate.id) === String(userId));
+  if (!user) return;
+  const config = beatUploadAccessConfig(userId);
+  const label = user.display_name || user.username || user.email || "Productor";
+  beatLicenseLastTrigger = trigger;
+  beatLicenseModalContent.innerHTML = `
+    <div class="beat-license-modal__header">
+      <p class="eyebrow">Beat Store · acceso de productor</p>
+      <h2>${escapeHtml(config.plan ? "Editar acceso" : "Dar acceso")}</h2>
+      <p>Configura el acceso de ${escapeHtml(label)} antes de enviar la bienvenida.</p>
+    </div>
+    <form class="beat-upload-access-form hr-stack" data-beat-upload-access-form data-user-id="${escapeHtml(userId)}">
+      <label class="field hr-field">
+        <span class="hr-label">Plan</span>
+        <select class="hr-select" name="plan" required>
+          <option value="">Selecciona un plan</option>
+          ${BEAT_UPLOAD_PLAN_OPTIONS.map((option) => `<option value="${escapeHtml(option.value)}" ${config.plan === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+        </select>
+      </label>
+      <label class="field hr-field">
+        <span class="hr-label">Límite de subidas</span>
+        <input class="hr-input" name="limit" type="number" min="1" max="1000" step="1" value="${escapeHtml(config.limit)}" placeholder="Ej. 10" required>
+        <small class="db-field__hint">Número máximo de beats que podrá subir este productor.</small>
+      </label>
+      <div class="product-actions hr-cluster">
+        <button class="secondary-button" type="button" data-license-modal-close>Cancelar</button>
+        <button class="primary-button" type="submit" data-beat-upload-access-save>Guardar y autorizar</button>
+      </div>
+    </form>`;
+  if (beatLicenseModal.parentElement !== document.body) document.body.appendChild(beatLicenseModal);
+  beatLicenseModal.hidden = false;
+  document.body.classList.add("beat-license-modal-open");
+  beatLicenseModal.querySelector("[name=plan]")?.focus?.();
+}
+
+async function handleBeatUploadAccessModalSubmit(event) {
+  const form = event.target.closest("[data-beat-upload-access-form]");
+  if (!form || !state.isAdmin) return;
+  event.preventDefault();
+  const userId = form.dataset.userId;
+  const plan = String(form.elements.plan?.value || "").trim();
+  const limit = Number(form.elements.limit?.value);
+  const submitButton = form.querySelector("[data-beat-upload-access-save]");
+  if (!BEAT_UPLOAD_PLAN_LABELS[plan] || !Number.isInteger(limit) || limit < 1 || limit > 1000) {
+    showNotice("Selecciona un plan y un límite entre 1 y 1000.", true);
+    return;
+  }
+
+  submitButton.disabled = true;
+  const existingRows = beatUploadPermissionRowsForUser(userId);
+  const hadBasePermission = existingRows.some((permission) => normalizePermissionKey(permission.permission_key) === BEAT_UPLOAD_PERMISSION_KEY);
+  const configIds = existingRows
+    .filter((permission) => normalizePermissionKey(permission.permission_key).startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.`))
+    .map((permission) => permission.id)
+    .filter(Boolean);
+
+  try {
+    if (configIds.length) {
+      const { error } = await supabase.from("user_permissions").delete().in("id", configIds);
+      if (error) throw error;
+    }
+
+    const inserts = [
+      ...(hadBasePermission ? [] : [{ user_id: userId, permission_key: BEAT_UPLOAD_PERMISSION_KEY }]),
+      { user_id: userId, permission_key: `${BEAT_UPLOAD_PERMISSION_KEY}.plan.${plan}` },
+      { user_id: userId, permission_key: `${BEAT_UPLOAD_PERMISSION_KEY}.limit.${limit}` },
+    ];
+    const { error: insertError } = await supabase.from("user_permissions").insert(inserts);
+    if (insertError) throw insertError;
+
+    if (!hadBasePermission) {
+      const targetUser = state.beatUploadUsers.find((user) => String(user.id) === String(userId));
+      const username = String(targetUser?.username || targetUser?.display_name || "productor").trim().replace(/^@+/, "") || "productor";
+      const { error: invitationError } = await supabase.from("notifications").insert({
+        user_id: userId,
+        message: `Invitación a Beat Store para @${username} · Plan: ${BEAT_UPLOAD_PLAN_LABELS[plan]} · Límite: ${limit} subidas`,
+        type: BEAT_STORE_INVITE_NOTIFICATION_TYPE,
+        read: false,
+      });
+      if (invitationError) showNotice("Acceso guardado, pero no se pudo enviar la invitación.", true);
+      else showNotice("Acceso autorizado y bienvenida enviada.");
+    } else {
+      showNotice("Plan y límite de subida actualizados.");
+    }
+    closeBeatLicensesModal();
+    await refreshBeatUploadPermissions();
+  } catch (error) {
+    showNotice(error.message || "No se pudo guardar el acceso.", true);
+    submitButton.disabled = false;
+  }
 }
 
 function handleBeatUploadPermissionsSearch() {
