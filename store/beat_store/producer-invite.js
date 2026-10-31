@@ -1,5 +1,8 @@
+import { createLegalService } from '../../assets/js/legal-service.js?v=20261030-legal-consent-v1';
+
 const BEAT_STORE_INVITE_TYPE = "beat-store-invite";
 const supabase = await window.HiddenRoomSupabase.getClient();
+const legalService = createLegalService(supabase);
 const lifecycle = new AbortController();
 
 window.HiddenRoomApp?.register(() => {
@@ -68,6 +71,7 @@ function showInviteModal(notificationId, rawUsername) {
           <input type="checkbox" data-beat-store-invite-consent>
           <span>Al hacer uso de nuestra plataforma, confirmas que aceptas los <a href="/docs/" target="_blank" rel="noopener noreferrer">términos y condiciones</a> y la <a href="/docs/#politica-de-privacidad" target="_blank" rel="noopener noreferrer">política de privacidad</a>.</span>
         </label>
+        <p class="beat-store-invite-modal__status" data-beat-store-invite-status role="status" aria-live="polite"></p>
         <button class="primary-button beat-store-invite-modal__button" type="button" data-beat-store-invite-accept aria-disabled="true" disabled>Aceptar</button>
       </div>
     </section>
@@ -91,7 +95,7 @@ function showInviteModal(notificationId, rawUsername) {
       return;
     }
     const acceptButton = event.target.closest("[data-beat-store-invite-accept]");
-    if (acceptButton && !acceptButton.disabled) void acceptInviteModal(notificationId);
+    if (acceptButton && !acceptButton.disabled) void acceptInviteModal(notificationId, overlay);
   }, { signal: lifecycle.signal });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && document.getElementById("hr-beat-store-invite-modal")) {
@@ -101,15 +105,50 @@ function showInviteModal(notificationId, rawUsername) {
   window.requestAnimationFrame(() => consent?.focus());
 }
 
-async function acceptInviteModal(notificationId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user && notificationId) {
-    await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("id", notificationId);
+async function acceptInviteModal(notificationId, overlay) {
+  const button = overlay?.querySelector("[data-beat-store-invite-accept]");
+  const status = overlay?.querySelector("[data-beat-store-invite-status]");
+  if (button) button.disabled = true;
+  if (status) status.textContent = "Guardando aceptación…";
+
+  try {
+    let requirements = [];
+    try {
+      requirements = await legalService.getRequirements({ module: "beatstore", action: "publish_beat" });
+    } catch (error) {
+      if (!isLegalMigrationUnavailable(error)) throw error;
+      console.warn("[HR] legal acceptance is not installed yet:", error);
+    }
+
+    for (const requirement of requirements.filter((item) => item.is_required && !item.has_accepted)) {
+      await legalService.accept({
+        documentId: requirement.document_id,
+        versionId: requirement.version_id,
+        module: requirement.module_key,
+        action: requirement.requested_action_key || (requirement.action_key === "*" ? null : requirement.action_key),
+        accountType: requirement.account_type || null,
+        method: "checkbox",
+      });
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user && notificationId) {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("id", notificationId);
+      if (error) throw error;
+    }
+    closeInviteModal();
+  } catch (error) {
+    console.error("[HR] Beat Store invite acceptance:", error);
+    if (status) status.textContent = error.message || "No se pudo registrar la aceptación.";
+    if (button) button.disabled = false;
   }
-  closeInviteModal();
+}
+
+function isLegalMigrationUnavailable(error) {
+  return /legal_get_requirements|does not exist|not found/i.test(String(error?.message || error || ""));
 }
 
 function closeInviteModal() {

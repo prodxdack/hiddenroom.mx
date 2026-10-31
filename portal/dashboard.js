@@ -18,6 +18,7 @@
 
 import { cloudSourceToFile, createCloudSourcePicker, joinCloudPath, walkCloudSource } from "../assets/js/cloud-source-picker.js?v=20261026-cloud-picker-lock-v1";
 import { getHrDisclosureState, renderHrDisclosure } from "../assets/js/hr-disclosure.js?v=20261028-hr-disclosure-v2";
+import { createLegalService, sha256Hex } from "../assets/js/legal-service.js?v=20261030-legal-consent-v1";
 import { initProfileAvatarEditor, resolveProfileAvatarUrl } from "../assets/js/profile-avatar-editor.js?v=20261030-profile-avatar-editor-v1";
 
 'use strict';
@@ -59,6 +60,7 @@ async function getSupabaseClient() {
 }
 
 const supabase = await getSupabaseClient();
+const legalService = createLegalService(supabase);
 
 const PROFILE_UPDATE_WHATSAPP = '5210000000000';
 const SHARE_LOGIN_WHATSAPP_FALLBACK = '5210000000000';
@@ -828,6 +830,11 @@ const SECTIONS = {
     roleRequired: 'admin',
     render: renderErpPermissions,
   },
+  'erp-legal': {
+    label: 'Documentos legales',
+    roleRequired: 'admin',
+    render: renderErpLegal,
+  },
   'view-as': {
     label: 'Ver como',
     roleRequired: 'admin',
@@ -938,6 +945,7 @@ const PORTAL_NAV_GROUPS = [
       { label: 'Operaciones', section: 'erp-ops', icon: 'settings' },
       { label: 'Subir CSV', section: 'erp-csv-upload', icon: 'doc' },
       { label: 'Permisos', section: 'erp-permissions', icon: 'users' },
+      { label: 'Documentos legales', section: 'erp-legal', icon: 'doc' },
       { label: 'Auth / Registros', section: 'erp-auth-audit', icon: 'activity' },
       { label: 'Servidor Mysauth', section: 'erp-infrastructure', icon: 'server' },
       { label: 'Cloud Hidden Room', section: 'erp-cloud', icon: 'cloud' },
@@ -8447,6 +8455,197 @@ async function renderErpPermissions() {
   `);
 }
 
+/* -- ERP: LEGAL DOCUMENTS ---------------------------------- */
+async function renderErpLegal() {
+  if (!hasRole('admin')) {
+    return sectionShell('ERP', 'Documentos legales', 'title-erp-legal', '<p class="db-empty db-empty--error">Acceso no autorizado.</p>');
+  }
+
+  const [documentsResult, versionsResult, rulesResult, acceptancesResult] = await Promise.all([
+    supabase
+      .from('legal_documents')
+      .select('id, document_key, name, description, document_type, status, created_at, updated_at')
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('legal_document_versions')
+      .select('id, document_id, version_label, content, storage_path, mime_type, content_sha256, status, published_at, effective_from, requires_reacceptance, created_at')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('legal_document_rules')
+      .select('id, document_id, module_key, action_key, role_key, account_type, is_required, is_active')
+      .order('module_key', { ascending: true }),
+    supabase
+      .from('legal_acceptances')
+      .select('id, auth_user_id, document_id, version_id, module_key, action_key, method, content_sha256, accepted_at')
+      .order('accepted_at', { ascending: false })
+      .limit(250),
+  ]);
+
+  const firstError = documentsResult.error || versionsResult.error || rulesResult.error || acceptancesResult.error;
+  if (firstError) {
+    console.error('[HR] renderErpLegal:', firstError);
+    return sectionShell('ERP', 'Documentos legales', 'title-erp-legal', `
+      <p class="db-empty db-empty--error">No se pudo cargar el sistema legal. Verifica que la migración de documentos legales esté aplicada.</p>
+    `);
+  }
+
+  const documents = documentsResult.data ?? [];
+  const versions = versionsResult.data ?? [];
+  const rules = rulesResult.data ?? [];
+  const acceptances = acceptancesResult.data ?? [];
+  const publishedDocuments = documents.filter((document) => document.status === 'published' && versions.some((version) => version.document_id === document.id && version.status === 'published'));
+  let pendingUsers = [];
+
+  try {
+    const pendingGroups = await Promise.all(publishedDocuments.map(async (document) => {
+      const users = await legalService.adminPendingUsers(document.id);
+      return users.map((user) => ({ ...user, document_id: document.id }));
+    }));
+    pendingUsers = pendingGroups.flat();
+  } catch (error) {
+    console.warn('[HR] legal pending users:', error);
+  }
+
+  state.data.legalDocuments = documents;
+  state.data.legalVersions = versions;
+  state.data.legalRules = rules;
+  state.data.legalAcceptances = acceptances;
+  state.data.legalPendingUsers = pendingUsers;
+
+  const documentOptions = documents.map((document) => optionHTML(document.id, `${document.name} · ${document.document_key}`, '')).join('');
+  const versionRows = versions.length
+    ? versions.map((version) => {
+      const document = documents.find((item) => item.id === version.document_id);
+      return `
+        <tr>
+          <td>${escapeHTML(document?.name || 'Documento')}</td>
+          <td>${escapeHTML(version.version_label)}</td>
+          <td><span class="db-status-badge db-status-badge--${escapeAttr(version.status)}">${escapeHTML(version.status)}</span></td>
+          <td>${escapeHTML(formatDateTime(version.effective_from))}</td>
+          <td>${version.requires_reacceptance ? 'Sí' : 'No'}</td>
+          <td>${version.status === 'draft' ? `<button class="db-btn-secondary" type="button" data-action="legal-publish-version" data-version-id="${escapeAttr(version.id)}">Publicar</button>` : '<span class="db-empty">Conservada</span>'}</td>
+        </tr>
+      `;
+    }).join('')
+    : '<tr><td colspan="6" class="db-empty">Sin versiones todavía.</td></tr>';
+
+  const acceptanceRows = acceptances.length
+    ? acceptances.map((acceptance) => {
+      const document = documents.find((item) => item.id === acceptance.document_id);
+      const version = versions.find((item) => item.id === acceptance.version_id);
+      return `
+        <tr>
+          <td><code>${escapeHTML(String(acceptance.auth_user_id))}</code></td>
+          <td>${escapeHTML(document?.name || acceptance.document_id)}</td>
+          <td>${escapeHTML(version?.version_label || acceptance.version_id)}</td>
+          <td>${escapeHTML(acceptance.module_key)}${acceptance.action_key ? ` · ${escapeHTML(acceptance.action_key)}` : ''}</td>
+          <td>${escapeHTML(formatDateTime(acceptance.accepted_at))}</td>
+        </tr>
+      `;
+    }).join('')
+    : '<tr><td colspan="5" class="db-empty">Sin aceptaciones registradas.</td></tr>';
+
+  const pendingRows = pendingUsers.length
+    ? pendingUsers.map((pending) => {
+      const document = documents.find((item) => item.id === pending.document_id);
+      return `
+        <tr>
+          <td>${escapeHTML(pending.display_name || pending.username || pending.email || 'Sin nombre')}</td>
+          <td>${escapeHTML(pending.username || '-')}</td>
+          <td>${escapeHTML(document?.name || pending.document_id || '-')}</td>
+          <td>${escapeHTML(pending.module_key || '-')} · ${escapeHTML(pending.action_key || '*')}</td>
+          <td>${escapeHTML(pending.version_label || '-')}</td>
+        </tr>
+      `;
+    }).join('')
+    : '<tr><td colspan="5" class="db-empty">No hay usuarios pendientes para las versiones publicadas.</td></tr>';
+
+  const documentCards = documents.length
+    ? documents.map((document) => {
+      const documentVersions = versions.filter((version) => version.document_id === document.id);
+      const documentRules = rules.filter((rule) => rule.document_id === document.id && rule.is_active);
+      const current = documentVersions.find((version) => version.status === 'published');
+      return `
+        <article class="hr-legal-admin-card">
+          <div class="hr-legal-admin-card__header">
+            <div>
+              <span class="section-label">${escapeHTML(document.document_type)} · ${escapeHTML(document.status)}</span>
+              <h3>${escapeHTML(document.name)}</h3>
+              <code>${escapeHTML(document.document_key)}</code>
+            </div>
+            ${document.status === 'draft' ? `<button class="db-btn-secondary" type="button" data-action="legal-edit-document" data-document-id="${escapeAttr(document.id)}">Editar borrador</button>` : '<span class="db-empty">Identidad publicada</span>'}
+          </div>
+          <p>${escapeHTML(document.description || 'Sin descripción.')}</p>
+          <div class="hr-legal-admin-card__meta">
+            <span>Versión vigente: ${escapeHTML(current?.version_label || 'ninguna')}</span>
+            <span>Versiones: ${documentVersions.length}</span>
+            <span>Reglas activas: ${documentRules.length}</span>
+          </div>
+          <div class="hr-legal-admin-card__rules">
+            ${documentRules.length ? documentRules.map((rule) => `<span class="db-permission-chip">${escapeHTML(rule.module_key)} · ${escapeHTML(rule.action_key)} · ${escapeHTML(rule.role_key)} · ${rule.is_required ? 'obligatorio' : 'informativo'}</span>`).join('') : '<span class="db-empty">Sin reglas de aplicación.</span>'}
+          </div>
+        </article>
+      `;
+    }).join('')
+    : '<p class="db-empty">Crea el primer documento legal para comenzar.</p>';
+
+  return sectionShell('ERP', 'Documentos legales', 'title-erp-legal', `
+    <p class="db-section__summary hr-portal-section__summary">Administra documentos, versiones, reglas de aplicación y evidencia de aceptación desde una sola sección.</p>
+    <div class="hr-legal-admin-grid">
+      <article class="db-card hr-card">
+        <header class="db-card__header"><span class="section-label">1 · Documento</span><h2>Crear o editar identidad</h2></header>
+        <form class="db-form hr-stack" data-form="legal-document">
+          <input type="hidden" name="document_id" />
+          <label class="db-field"><span>Identificador estable</span><input name="document_key" required pattern="[a-z0-9][a-z0-9._-]{2,119}" placeholder="beatstore-producer-terms" /></label>
+          <label class="db-field"><span>Nombre</span><input name="name" required placeholder="Contrato para productores de Beat Store" /></label>
+          <label class="db-field"><span>Tipo</span><select name="document_type">${['terms', 'contract', 'policy', 'consent', 'notice', 'other'].map((value) => optionHTML(value, value, 'terms')).join('')}</select></label>
+          <label class="db-field"><span>Descripción</span><textarea name="description" rows="3" placeholder="Cuándo y para qué se aplica."></textarea></label>
+          <div class="hr-legal-admin-form-actions"><button class="primary-button" type="submit">Guardar documento</button><button class="secondary-button" type="button" data-action="legal-reset-document-form">Limpiar</button></div>
+        </form>
+      </article>
+      <article class="db-card hr-card">
+        <header class="db-card__header"><span class="section-label">2 · Versión</span><h2>Preparar publicación</h2></header>
+        <form class="db-form hr-stack" data-form="legal-version">
+          <label class="db-field"><span>Documento</span><select name="document_id" required><option value="">Selecciona un documento</option>${documentOptions}</select></label>
+          <label class="db-field"><span>Versión</span><input name="version_label" required placeholder="1.0" /></label>
+          <label class="db-field"><span>Contenido de texto <small>(o sube un PDF)</small></span><textarea name="content" rows="7" placeholder="Pega aquí el texto si no utilizarás PDF."></textarea></label>
+          <label class="db-field"><span>Archivo PDF <small>(opcional)</small></span><input name="pdf" type="file" accept="application/pdf,.pdf" /></label>
+          <label class="db-checkbox-label"><input name="requires_reacceptance" type="checkbox" checked /><span>Exigir aceptación nueva para esta versión</span></label>
+          <button class="primary-button" type="submit">Guardar versión como borrador</button>
+        </form>
+      </article>
+      <article class="db-card hr-card">
+        <header class="db-card__header"><span class="section-label">3 · Aplicabilidad</span><h2>Regla de aceptación</h2></header>
+        <form class="db-form hr-stack" data-form="legal-rule">
+          <label class="db-field"><span>Documento</span><select name="document_id" required><option value="">Selecciona un documento</option>${documentOptions}</select></label>
+          <label class="db-field"><span>Módulo</span><input name="module_key" required placeholder="beatstore" /></label>
+          <label class="db-field"><span>Acción <small>(opcional)</small></span><input name="action_key" placeholder="publish_beat o *" /></label>
+          <label class="db-field"><span>Rol <small>(opcional)</small></span><input name="role_key" placeholder="client, collaborator o *" /></label>
+          <label class="db-field"><span>Tipo de cuenta <small>(opcional)</small></span><input name="account_type" placeholder="producer, client o vacío" /></label>
+          <label class="db-checkbox-label"><input name="is_required" type="checkbox" checked /><span>Bloquear la acción hasta aceptar</span></label>
+          <button class="primary-button" type="submit">Guardar regla</button>
+        </form>
+      </article>
+    </div>
+    <div class="hr-legal-admin-block">
+      <header class="db-card__header"><span class="section-label">Documentos registrados</span><h2>Biblioteca legal</h2></header>
+      <div class="hr-legal-admin-cards">${documentCards}</div>
+    </div>
+    <div class="hr-legal-admin-block">
+      <header class="db-card__header"><span class="section-label">Versiones</span><h2>Historial inmutable</h2></header>
+      <div class="db-table-wrap hr-table-wrap"><table class="db-table hr-table hr-table-readable" aria-label="Versiones legales"><thead><tr><th>Documento</th><th>Versión</th><th>Estado</th><th>Vigencia</th><th>Nueva aceptación</th><th>Acción</th></tr></thead><tbody>${versionRows}</tbody></table></div>
+    </div>
+    <div class="hr-legal-admin-block">
+      <header class="db-card__header"><span class="section-label">Auditoría</span><h2>Aceptaciones registradas</h2></header>
+      <div class="db-table-wrap hr-table-wrap"><table class="db-table hr-table hr-table-readable" aria-label="Aceptaciones legales"><thead><tr><th>Usuario Auth</th><th>Documento</th><th>Versión</th><th>Contexto</th><th>Fecha</th></tr></thead><tbody>${acceptanceRows}</tbody></table></div>
+    </div>
+    <div class="hr-legal-admin-block">
+      <header class="db-card__header"><span class="section-label">Pendientes</span><h2>Usuarios que deben aceptar</h2></header>
+      <div class="db-table-wrap hr-table-wrap"><table class="db-table hr-table hr-table-readable" aria-label="Usuarios pendientes de aceptación"><thead><tr><th>Usuario</th><th>Username</th><th>Documento</th><th>Regla</th><th>Versión</th></tr></thead><tbody>${pendingRows}</tbody></table></div>
+    </div>
+  `);
+}
+
 async function renderErpAuthAudit() {
   if (!hasRole('admin')) {
     return sectionShell('ERP', 'Auth / Registros', 'title-erp-auth-audit', `
@@ -12624,6 +12823,139 @@ async function handlePermissionAdd(form) {
   if (result.ok) navigate('erp-permissions');
 }
 
+function resetLegalDocumentForm() {
+  const form = document.querySelector('form[data-form="legal-document"]');
+  if (!form) return;
+  form.reset();
+  form.elements.document_id.value = '';
+  form.elements.document_type.value = 'terms';
+}
+
+function handleLegalDocumentEdit(documentId) {
+  const documentRecord = (state.data.legalDocuments ?? []).find((document) => String(document.id) === String(documentId));
+  const form = document.querySelector('form[data-form="legal-document"]');
+  if (!documentRecord || !form) return;
+  form.elements.document_id.value = documentRecord.id;
+  form.elements.document_key.value = documentRecord.document_key || '';
+  form.elements.name.value = documentRecord.name || '';
+  form.elements.description.value = documentRecord.description || '';
+  form.elements.document_type.value = documentRecord.document_type || 'terms';
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  form.elements.name.focus();
+}
+
+async function handleLegalDocumentSubmit(form) {
+  if (!requireAdminMutation()) return;
+  const values = formValues(form);
+  const documentKey = String(values.document_key || '').trim().toLowerCase();
+  const name = String(values.name || '').trim();
+  if (!/^[a-z0-9][a-z0-9._-]{2,119}$/.test(documentKey) || !name) {
+    showToast('El identificador y el nombre del documento son obligatorios.', 'error');
+    return;
+  }
+
+  try {
+    if (values.document_id) {
+      await legalService.adminUpdateDocument({
+        documentId: values.document_id,
+        documentKey,
+        name,
+        description: values.description,
+        documentType: values.document_type,
+      });
+      showToast('Documento legal actualizado.', 'success');
+    } else {
+      await legalService.adminCreateDocument({
+        documentKey,
+        name,
+        description: values.description,
+        documentType: values.document_type,
+      });
+      showToast('Documento legal creado como borrador.', 'success');
+    }
+    navigate('erp-legal');
+  } catch (error) {
+    console.error('[HR] legal document save:', error);
+    showToast(error.message || 'No se pudo guardar el documento legal.', 'error');
+  }
+}
+
+async function handleLegalVersionSubmit(form) {
+  if (!requireAdminMutation()) return;
+  const values = formValues(form);
+  const documentId = values.document_id;
+  const document = (state.data.legalDocuments ?? []).find((item) => String(item.id) === String(documentId));
+  const file = form.elements.pdf?.files?.[0] || null;
+  const content = String(values.content || '').trim();
+  if (!document || !values.version_label || (!content && !file)) {
+    showToast('Selecciona documento, versión y contenido o PDF.', 'error');
+    return;
+  }
+  if (file && file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
+    showToast('La versión debe ser un PDF.', 'error');
+    return;
+  }
+
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) { submit.disabled = true; submit.textContent = 'Guardando…'; }
+  try {
+    let source = { storagePath: null, contentSha256: await sha256Hex(content), mimeType: content ? 'text/plain' : null };
+    if (file) source = await legalService.uploadPdf(file, { documentKey: document.document_key, versionLabel: values.version_label });
+    await legalService.adminCreateVersion({
+      documentId,
+      versionLabel: String(values.version_label).trim(),
+      content: file ? null : content,
+      storagePath: source.storagePath,
+      mimeType: source.mimeType,
+      contentSha256: source.contentSha256,
+      requiresReacceptance: form.elements.requires_reacceptance.checked,
+    });
+    showToast('Versión guardada como borrador. Revísala y publícala desde el historial.', 'success');
+    navigate('erp-legal');
+  } catch (error) {
+    console.error('[HR] legal version save:', error);
+    showToast(error.message || 'No se pudo guardar la versión legal.', 'error');
+    if (submit) { submit.disabled = false; submit.textContent = 'Guardar versión como borrador'; }
+  }
+}
+
+async function handleLegalRuleSubmit(form) {
+  if (!requireAdminMutation()) return;
+  const values = formValues(form);
+  if (!values.document_id || !String(values.module_key || '').trim()) {
+    showToast('Selecciona documento y módulo.', 'error');
+    return;
+  }
+  try {
+    await legalService.adminCreateRule({
+      documentId: values.document_id,
+      moduleKey: values.module_key,
+      actionKey: values.action_key,
+      roleKey: values.role_key,
+      accountType: values.account_type,
+      isRequired: form.elements.is_required.checked,
+    });
+    showToast('Regla de aplicabilidad guardada.', 'success');
+    navigate('erp-legal');
+  } catch (error) {
+    console.error('[HR] legal rule save:', error);
+    showToast(error.message || 'No se pudo guardar la regla.', 'error');
+  }
+}
+
+async function handleLegalPublishVersion(versionId) {
+  if (!requireAdminMutation() || !versionId) return;
+  if (!window.confirm('¿Publicar esta versión? Las versiones publicadas se conservan y una nueva versión puede exigir aceptación otra vez.')) return;
+  try {
+    await legalService.adminPublishVersion(versionId);
+    showToast('Versión legal publicada.', 'success');
+    navigate('erp-legal');
+  } catch (error) {
+    console.error('[HR] legal version publish:', error);
+    showToast(error.message || 'No se pudo publicar la versión.', 'error');
+  }
+}
+
 async function handlePermissionRemove(permissionId) {
   if (!requireAdminMutation()) return;
   if (!permissionId) return;
@@ -13827,6 +14159,18 @@ function attachMainDelegation() {
       handlePermissionRemove(btn?.dataset.permissionId);
     }
 
+    if (action === 'legal-edit-document') {
+      handleLegalDocumentEdit(e.target.closest('[data-document-id]')?.dataset.documentId);
+    }
+
+    if (action === 'legal-reset-document-form') {
+      resetLegalDocumentForm();
+    }
+
+    if (action === 'legal-publish-version') {
+      handleLegalPublishVersion(e.target.closest('[data-version-id]')?.dataset.versionId);
+    }
+
     if (action === 'admin-user-edit') {
       const btn = e.target.closest('[data-user-uuid]');
       const userUuid = btn?.dataset.userUuid;
@@ -14334,6 +14678,9 @@ function attachMainDelegation() {
     if (form.dataset.form === 'task-update') handleTaskUpdate(form);
     if (form.dataset.form === 'account-update') handleAccountUpdate(form);
     if (form.dataset.form === 'permission-add') handlePermissionAdd(form);
+    if (form.dataset.form === 'legal-document') handleLegalDocumentSubmit(form);
+    if (form.dataset.form === 'legal-version') handleLegalVersionSubmit(form);
+    if (form.dataset.form === 'legal-rule') handleLegalRuleSubmit(form);
     if (form.dataset.form === 'admin-table-update') handleAdminTableUpdate(form);
     if (form.dataset.form === 'event-finance-table-update') handleEventFinanceTableUpdate(form);
     if (form.dataset.form === 'user-merge') handleErpForm(form);

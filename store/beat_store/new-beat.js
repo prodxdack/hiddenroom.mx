@@ -1,6 +1,8 @@
 import { createCloudSourcePicker } from '../../assets/js/cloud-source-picker.js';
+import { createLegalService, openLegalAcceptanceGate } from '../../assets/js/legal-service.js?v=20261030-legal-consent-v1';
 
 const supabase = await window.HiddenRoomSupabase.getClient();
+const legalService = createLegalService(supabase);
 const SUPABASE_URL = 'https://rpcunbkstadgngqrjafp.supabase.co';
 const ANALYZE_BEAT_AUDIO_ENDPOINT = `${SUPABASE_URL}/functions/v1/analyze-beat-audio`;
 const CLOUD_ORIGIN = 'https://cloud.hiddenroom.mx';
@@ -119,6 +121,10 @@ async function saveDraft(event, sendReview) {
   if (!form.elements.cover.files?.[0] && !state.product?.beat_cover_path && !state.product?.image_url) return showError('La portada es obligatoria para subir un beat.');
   const audioFile = form.elements.audio.files?.[0] || null; if (audioFile && !isAudioFile(audioFile)) return showError('El master debe ser un archivo WAV sin comprimir (.wav).');
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.slug.trim().toLowerCase())) return showError('El slug sólo puede usar minúsculas, números y guiones.');
+  if (sendReview) {
+    const accepted = await ensureBeatStoreLegalAcceptance();
+    if (!accepted) return;
+  }
   const button = event ? form.querySelector('button[type=submit]') : reviewButton; button.disabled = true; statusElement.textContent = 'Guardando borrador...';
   try {
     const producerName = state.profile?.display_name || state.user?.display_name || state.user?.username || null;
@@ -130,6 +136,27 @@ async function saveDraft(event, sendReview) {
     if (sendReview) { const { error: reviewError } = await supabase.rpc('submit_beat_for_review', { p_beat_id:id }); if (reviewError) throw new Error(reviewError.message); statusElement.textContent = 'Beat enviado a revisión. El admin validará archivos, licencias y metadata.'; reviewButton.disabled = true; }
     else { statusElement.textContent = 'Borrador guardado. Puedes volver a abrirlo sin perder metadata.'; reviewButton.disabled = false; }
   } catch (error) { showError(error.message || 'No se pudo guardar el borrador.'); button.disabled = false; }
+}
+
+async function ensureBeatStoreLegalAcceptance() {
+  let requirements;
+  try {
+    requirements = await legalService.getRequirements({ module: 'beatstore', action: 'publish_beat' });
+  } catch (error) {
+    // Keep existing Beat Store behavior compatible until the additive legal
+    // migration is installed in the target Supabase environment.
+    console.warn('[HR] legal requirements unavailable:', error);
+    return true;
+  }
+
+  const pending = requirements.filter((requirement) => requirement.is_required && !requirement.has_accepted);
+  if (!pending.length) return true;
+  return openLegalAcceptanceGate({
+    service: legalService,
+    requirements: pending,
+    title: 'Aceptación necesaria para enviar a revisión',
+    eyebrow: 'Beat Store · Productor',
+  });
 }
 
 async function handleAutodetectClick(event) {
