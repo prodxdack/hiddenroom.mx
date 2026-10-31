@@ -89,6 +89,59 @@ create trigger legal_documents_set_updated_at
 before update on public.legal_documents
 for each row execute function public.set_updated_at();
 
+create or replace function public.legal_lock_published_version()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' and old.status in ('published', 'archived') then
+    raise exception 'Published legal versions are immutable';
+  end if;
+
+  if tg_op = 'UPDATE' and old.status in ('published', 'archived') then
+    if old.status = 'published'
+       and new.status = 'archived'
+       and new.document_id = old.document_id
+       and new.version_label = old.version_label
+       and new.content is not distinct from old.content
+       and new.storage_path is not distinct from old.storage_path
+       and new.mime_type is not distinct from old.mime_type
+       and new.content_sha256 = old.content_sha256
+       and new.published_at is not distinct from old.published_at
+       and new.effective_from = old.effective_from
+       and new.requires_reacceptance = old.requires_reacceptance
+       and new.created_by is not distinct from old.created_by
+       and new.created_at = old.created_at then
+      return new;
+    end if;
+    raise exception 'Published legal versions are immutable';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists legal_document_versions_immutable on public.legal_document_versions;
+create trigger legal_document_versions_immutable
+before update or delete on public.legal_document_versions
+for each row execute function public.legal_lock_published_version();
+
+create or replace function public.legal_lock_acceptance_history()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'Legal acceptance history is immutable';
+end;
+$$;
+
+drop trigger if exists legal_acceptances_immutable on public.legal_acceptances;
+create trigger legal_acceptances_immutable
+before update or delete on public.legal_acceptances
+for each row execute function public.legal_lock_acceptance_history();
+
 insert into storage.buckets (id, name, public)
 values ('legal-documents', 'legal-documents', false)
 on conflict (id) do update set public = false;
@@ -544,8 +597,17 @@ begin
     left(nullif(btrim(p_user_agent), ''), 512)
   )
   on conflict (auth_user_id, version_id, module_key, action_key)
-  do update set accepted_at = existing.accepted_at
+  do nothing
   returning * into acceptance;
+
+  if acceptance.id is null then
+    select * into acceptance
+    from public.legal_acceptances
+    where auth_user_id = auth.uid()
+      and version_id = p_version_id
+      and module_key = normalized_module
+      and action_key = normalized_action;
+  end if;
 
   return acceptance;
 end;
@@ -615,21 +677,21 @@ where not exists (
 order by lower(coalesce(a.display_name, a.username, a.email, ''));
 $$;
 
-revoke all on function public.legal_admin_create_document(text, text, text, text) from public;
+revoke all on function public.legal_admin_create_document(text, text, text, text) from public, anon, service_role;
 grant execute on function public.legal_admin_create_document(text, text, text, text) to authenticated;
-revoke all on function public.legal_admin_update_document(uuid, text, text, text, text) from public;
+revoke all on function public.legal_admin_update_document(uuid, text, text, text, text) from public, anon, service_role;
 grant execute on function public.legal_admin_update_document(uuid, text, text, text, text) to authenticated;
-revoke all on function public.legal_admin_create_version(uuid, text, text, text, text, text, timestamptz, boolean) from public;
+revoke all on function public.legal_admin_create_version(uuid, text, text, text, text, text, timestamptz, boolean) from public, anon, service_role;
 grant execute on function public.legal_admin_create_version(uuid, text, text, text, text, text, timestamptz, boolean) to authenticated;
-revoke all on function public.legal_admin_publish_version(uuid) from public;
+revoke all on function public.legal_admin_publish_version(uuid) from public, anon, service_role;
 grant execute on function public.legal_admin_publish_version(uuid) to authenticated;
-revoke all on function public.legal_admin_create_rule(uuid, text, text, text, text, boolean) from public;
+revoke all on function public.legal_admin_create_rule(uuid, text, text, text, text, boolean) from public, anon, service_role;
 grant execute on function public.legal_admin_create_rule(uuid, text, text, text, text, boolean) to authenticated;
-revoke all on function public.legal_get_requirements(text, text, text) from public;
+revoke all on function public.legal_get_requirements(text, text, text) from public, anon, service_role;
 grant execute on function public.legal_get_requirements(text, text, text) to authenticated;
-revoke all on function public.legal_accept_document(uuid, uuid, text, text, text, text, text) from public;
+revoke all on function public.legal_accept_document(uuid, uuid, text, text, text, text, text) from public, anon, service_role;
 grant execute on function public.legal_accept_document(uuid, uuid, text, text, text, text, text) to authenticated;
-revoke all on function public.legal_admin_pending_users(uuid) from public;
+revoke all on function public.legal_admin_pending_users(uuid) from public, anon, service_role;
 grant execute on function public.legal_admin_pending_users(uuid) to authenticated;
 
 comment on table public.legal_documents is

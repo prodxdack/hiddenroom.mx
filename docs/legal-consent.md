@@ -66,7 +66,7 @@ node --check store/beat_store/producer-invite.js
 git diff --check
 ```
 
-La migración y el test deben ejecutarse contra Supabase Local antes de aplicar la migración al proyecto de producción. Este entorno no tenía la CLI local disponible, por lo que la prueba de RLS, grants y RPCs queda pendiente de ejecutarse con Supabase Local.
+La migración y el test se validaron contra Supabase Local en un arnés temporal construido con un dump de solo lectura del esquema público actual. El resultado fue `29/29` pruebas exitosas, incluyendo grants, `SECURITY DEFINER`, `search_path`, RLS entre dos usuarios, idempotencia e inmutabilidad histórica. El dump y los contenedores temporales fueron eliminados después de la prueba.
 
 ## Despliegue y rollback
 
