@@ -21,6 +21,10 @@ async function initProducerInvite() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return;
 
+  if (document.body.classList.contains("db-body")) {
+    await waitForPortalOnboardingReady();
+  }
+
   const { data: profile } = await supabase
     .from("users")
     .select("user_id,display_name,username,email,whatsapp,ig_username,roles")
@@ -29,7 +33,9 @@ async function initProducerInvite() {
 
   if (isAdmin(profile?.roles)) return;
 
-  await window.HiddenRoomProfilePrompts?.schedule?.(profile, session.user, supabase);
+  if (!document.body.classList.contains("db-body")) {
+    await window.HiddenRoomProfilePrompts?.schedule?.(profile, session.user, supabase);
+  }
 
   const notificationUserIds = [...new Set([session.user.id, profile?.user_id].filter(Boolean).map(String))];
   const { data: notifications, error } = await supabase
@@ -45,6 +51,15 @@ async function initProducerInvite() {
   inviteQueue.notifications = notifications;
   inviteQueue.username = profile?.username || '';
   showNextInviteModal();
+}
+
+function waitForPortalOnboardingReady() {
+  if (!document.body.classList.contains("db-body") || document.body.dataset.hrPortalOnboardingReady === "true") {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    window.addEventListener("hiddenroom:portal-onboarding-ready", resolve, { once: true });
+  });
 }
 
 function isAdmin(rawRoles) {

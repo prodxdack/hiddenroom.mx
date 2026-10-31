@@ -14970,6 +14970,8 @@ async function init() {
   // ── End onboarding gate ──────────────────────────────────────────
 
   await window.HiddenRoomProfilePrompts?.schedule?.(state.user, state.user, supabase);
+  document.body.dataset.hrPortalOnboardingReady = 'true';
+  window.dispatchEvent(new Event('hiddenroom:portal-onboarding-ready'));
 
   navigate(initialSectionKey());
 }
