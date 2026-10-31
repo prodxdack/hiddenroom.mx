@@ -1698,10 +1698,7 @@ async function handleBeatUploadPermissionClick(event) {
   const userId = button.dataset.beatUploadPermissionRevoke;
   const targetUser = state.beatUploadUsers.find((user) => String(user.id) === userId);
   button.disabled = true;
-  const permissionIds = beatUploadPermissionIdsForUser(userId);
-  const result = permissionIds.length
-    ? await supabase.from("user_permissions").delete().in("id", permissionIds)
-    : { error: null };
+  const result = await supabase.rpc("admin_revoke_beat_upload_access", { p_user_id: userId });
   if (result.error) {
     showNotice(result.error.message || "No se pudo actualizar el permiso.", true);
     button.disabled = false;
@@ -1764,24 +1761,14 @@ async function handleBeatUploadAccessModalSubmit(event) {
   submitButton.disabled = true;
   const existingRows = beatUploadPermissionRowsForUser(userId);
   const hadBasePermission = existingRows.some((permission) => normalizePermissionKey(permission.permission_key) === BEAT_UPLOAD_PERMISSION_KEY);
-  const configIds = existingRows
-    .filter((permission) => normalizePermissionKey(permission.permission_key).startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.`))
-    .map((permission) => permission.id)
-    .filter(Boolean);
 
   try {
-    if (configIds.length) {
-      const { error } = await supabase.from("user_permissions").delete().in("id", configIds);
-      if (error) throw error;
-    }
-
-    const inserts = [
-      ...(hadBasePermission ? [] : [{ user_id: userId, permission_key: BEAT_UPLOAD_PERMISSION_KEY }]),
-      { user_id: userId, permission_key: `${BEAT_UPLOAD_PERMISSION_KEY}.plan.${plan}` },
-      { user_id: userId, permission_key: `${BEAT_UPLOAD_PERMISSION_KEY}.limit.${limit}` },
-    ];
-    const { error: insertError } = await supabase.from("user_permissions").insert(inserts);
-    if (insertError) throw insertError;
+    const { error: accessError } = await supabase.rpc("admin_set_beat_upload_access", {
+      p_user_id: userId,
+      p_plan_key: plan,
+      p_upload_limit: limit,
+    });
+    if (accessError) throw accessError;
 
     if (!hadBasePermission) {
       const targetUser = state.beatUploadUsers.find((user) => String(user.id) === String(userId));

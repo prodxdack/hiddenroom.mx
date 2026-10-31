@@ -11,7 +11,7 @@ const form = document.getElementById('beat-form');
 const errorElement = document.getElementById('form-error');
 const statusElement = document.getElementById('form-status');
 const reviewButton = document.getElementById('submit-review');
-const state = { session: null, user: null, profile: null, product: null, licenses: [], assignments: [] };
+const state = { session: null, user: null, profile: null, product: null, licenses: [], assignments: [], uploadAccess: null };
 
 init().catch((error) => showError(error.message || 'No se pudo cargar el formulario.'));
 
@@ -36,13 +36,22 @@ async function init() {
   const roles = String(account?.roles || '').split(',').map((role) => role.trim().toLowerCase());
   const canUpload = roles.includes('admin') || Boolean(hasBeatUploadPermission);
   if (!canUpload) throw new Error('Tu cuenta no tiene permiso para subir beats.');
+  const editingId = new URLSearchParams(location.search).get('id');
+  const accessResult = await supabase.rpc('beat_upload_access_config', { p_user_id: state.session.user.id });
+  if (!accessResult.error && Array.isArray(accessResult.data) && accessResult.data[0]) {
+    state.uploadAccess = accessResult.data[0];
+    const remaining = Number(state.uploadAccess.remaining_uploads);
+    if (!roles.includes('admin') && !editingId && Number.isInteger(remaining) && remaining <= 0) {
+      throw new Error('Alcanzaste el límite de beats de tu plan. Contacta al equipo de Hidden Room para ampliar tu acceso.');
+    }
+  }
   state.user = account;
   state.profile = profile;
   const [{ data: licenses, error: licenseError }] = await Promise.all([supabase.from('beat_licenses').select('id, name, min_price, max_price, description, format, is_active').eq('is_active', true).order('created_at')]);
   if (licenseError) throw new Error(licenseError.message); state.licenses = licenses || [];
   renderLicenses();
   setupCloudPickers();
-  const id = new URLSearchParams(location.search).get('id'); if (id) await loadProduct(id);
+  const id = editingId; if (id) await loadProduct(id);
   form.addEventListener('submit', (event) => saveDraft(event, false)); reviewButton.addEventListener('click', () => saveDraft(null, true));
   form.addEventListener('click', handleAutodetectClick);
   form.elements.audio.addEventListener('change', () => { markAutodetectInputs(false); updateAutodetectButtons(); });
