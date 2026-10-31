@@ -6,7 +6,7 @@ const HR_SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const HR_SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 const HR_CLOUD_ORIGIN = "https://cloud.hiddenroom.mx";
 const HR_PRODUCER_INVITE_CSS = "/store/beat_store/producer-invite.css?v=20261030-legal-consent-v1";
-const HR_PRODUCER_INVITE_MODULE = "/store/beat_store/producer-invite.js?v=20261030-legal-consent-v1";
+const HR_PRODUCER_INVITE_MODULE = "/store/beat_store/producer-invite.js?v=20261031-legal-queue-v1";
 // Keep the auth session across page changes and deployments.
 // The default storage key is intentional so existing sessions remain valid.
 const HR_SUPABASE_AUTH_OPTIONS = {
@@ -1092,93 +1092,198 @@ function cleanGlobalInstagramUsername(value) {
 
 let instagramUsernamePromptOpen = false;
 let instagramUsernamePromptResolved = false;
+let whatsappPromptOpen = false;
+let whatsappPromptResolved = false;
+let globalProfilePromptUserId = "";
+let globalProfilePromptPromise = null;
 
-function showGlobalInstagramUsernamePrompt(profile, user, supabase) {
-  if (!user?.id || profile?.ig_username || instagramUsernamePromptOpen || instagramUsernamePromptResolved) return;
-  if (document.getElementById("js-onboarding-gate")) {
-    window.setTimeout(() => showGlobalInstagramUsernamePrompt(profile, user, supabase), 1800);
-    return;
-  }
+let globalModalQueue = Promise.resolve();
+let globalModalActive = 0;
 
-  document.getElementById("hr-instagram-username-gate")?.remove();
-  instagramUsernamePromptOpen = true;
+function enqueueGlobalModal(task) {
+  const run = () => {
+    globalModalActive += 1;
+    return Promise.resolve()
+      .then(task)
+      .finally(() => { globalModalActive = Math.max(0, globalModalActive - 1); });
+  };
+  const result = globalModalQueue.then(run, run);
+  globalModalQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+window.HiddenRoomModalQueue = window.HiddenRoomModalQueue || {
+  enqueue: enqueueGlobalModal,
+  isActive: () => globalModalActive > 0,
+};
+
+function cleanGlobalWhatsapp(value) {
+  return String(value ?? "").replace(/\D/g, "").slice(0, 15);
+}
+
+function showGlobalProfileFieldPrompt({ profile, user, supabase, field, title, description, label, placeholder, inputType = "text", autocomplete, normalize, validate, invalidMessage, saveError, eventName }) {
+  const promptId = `hr-profile-${field}-gate`;
+  const existing = document.getElementById(promptId);
+  if (existing) return existing._hrCompletion || Promise.resolve(false);
 
   const displayName = profile?.display_name || profile?.username || user?.email?.split("@")[0] || "Usuario";
   const overlay = document.createElement("div");
-  overlay.id = "hr-instagram-username-gate";
+  overlay.id = promptId;
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-labelledby", "hr-instagram-username-title");
+  overlay.setAttribute("aria-labelledby", `${promptId}-title`);
   overlay.style.cssText = [
     "position:fixed",
     "inset:0",
-    "background:rgba(0,0,0,.82)",
+    "background:rgba(0,0,0,.88)",
     "z-index:var(--hr-z-overlay,10001)",
     "display:flex",
     "align-items:center",
     "justify-content:center",
     "padding:16px",
   ].join(";");
-
   overlay.innerHTML = `
     <div style="width:min(460px,100%);background:#101010;color:#f8f8f8;border:1px solid rgba(255,255,255,.16);border-radius:8px;box-shadow:0 24px 80px rgba(0,0,0,.45);padding:20px;">
-      <h2 id="hr-instagram-username-title" style="margin:0 0 8px;font-size:1.2rem;">Instagram</h2>
+      <h2 id="${promptId}-title" style="margin:0 0 8px;font-size:1.2rem;">${escapeNavText(title)}</h2>
       <p style="margin:0 0 16px;color:#d7d7d7;line-height:1.45;">
-        <strong>${escapeNavText(displayName)}</strong> Escribe tu usuario de instagram, es importante para que no tengas problemas con tus beneficios.
+        <strong>${escapeNavText(displayName)}</strong> ${escapeNavText(description)}
       </p>
-      <form data-hr-instagram-username-form>
+      <form data-hr-profile-prompt-form>
         <label style="display:grid;gap:6px;margin-bottom:14px;">
-          <span style="font-size:.86rem;color:#bdbdbd;">Usuario de Instagram</span>
-          <input name="ig_username" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="tu_usuario" required
+          <span style="font-size:.86rem;color:#bdbdbd;">${escapeNavText(label)}</span>
+          <input name="profile_value" type="${escapeNavText(inputType)}" autocomplete="${escapeNavText(autocomplete || "off")}" placeholder="${escapeNavText(placeholder || "")}" required
             style="width:100%;box-sizing:border-box;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:#050505;color:#fff;padding:12px;font:inherit;" />
         </label>
-        <button type="submit" style="width:100%;border:0;border-radius:8px;background:#fff;color:#000;padding:12px 14px;font-weight:700;cursor:pointer;">Guardar Instagram</button>
-        <div data-hr-instagram-username-status hidden style="margin-top:10px;color:#fca5a5;font-size:.86rem;"></div>
+        <button type="submit" style="width:100%;border:0;border-radius:8px;background:#fff;color:#000;padding:12px 14px;font-weight:700;cursor:pointer;">Guardar y continuar</button>
+        <div data-hr-profile-prompt-status hidden style="margin-top:10px;color:#fca5a5;font-size:.86rem;"></div>
       </form>
     </div>
   `;
 
+  let resolveCompletion;
+  const completion = new Promise((resolve) => { resolveCompletion = resolve; });
+  overlay._hrCompletion = completion;
   document.body.appendChild(overlay);
-  overlay.querySelector("input[name='ig_username']")?.focus();
+  document.body.classList.add("hr-overlay-open");
+  const input = overlay.querySelector("input[name='profile_value']");
+  input?.focus();
+
+  let settled = false;
+  const finish = (value) => {
+    if (settled) return;
+    settled = true;
+    overlay.remove();
+    document.body.classList.remove("hr-overlay-open");
+    resolveCompletion(value);
+  };
+  overlay._hrFinish = finish;
 
   overlay.querySelector("form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const submit = form.querySelector("button[type='submit']");
-    const status = form.querySelector("[data-hr-instagram-username-status]");
-    const igUsername = cleanGlobalInstagramUsername(new FormData(form).get("ig_username"));
+    const status = form.querySelector("[data-hr-profile-prompt-status]");
+    const value = normalize(new FormData(form).get("profile_value"));
 
-    if (!igUsername || igUsername.length < 2) {
+    if (!validate(value)) {
       if (status) {
         status.hidden = false;
-        status.textContent = "Escribe un usuario de Instagram valido.";
+        status.textContent = invalidMessage;
       }
       return;
     }
 
     submit.disabled = true;
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({ ig_username: igUsername })
-        .eq("id", user.id);
-
+      const { error } = await supabase.from("users").update({ [field]: value }).eq("id", user.id);
       if (error) throw error;
-
-      instagramUsernamePromptResolved = true;
-      instagramUsernamePromptOpen = false;
-      overlay.remove();
-      window.dispatchEvent(new CustomEvent("hiddenroom:ig-username-updated", { detail: { ig_username: igUsername } }));
+      finish(true);
+      window.dispatchEvent(new CustomEvent(eventName, { detail: { [field]: value } }));
     } catch (error) {
-      console.info("[HR] No se pudo guardar Instagram:", error?.message || error);
+      console.info(`[HR] No se pudo guardar ${field}:`, error?.message || error);
       submit.disabled = false;
       if (status) {
         status.hidden = false;
-        status.textContent = error?.message || "No se pudo guardar tu Instagram.";
+        status.textContent = error?.message || saveError;
       }
     }
   });
+
+  return completion;
 }
+
+function showGlobalInstagramUsernamePrompt(profile, user, supabase) {
+  if (!user?.id || profile?.ig_username || instagramUsernamePromptOpen || instagramUsernamePromptResolved) return Promise.resolve(true);
+  instagramUsernamePromptOpen = true;
+  const completion = showGlobalProfileFieldPrompt({
+    profile,
+    user,
+    supabase,
+    field: "ig_username",
+    title: "Actualiza tu Instagram",
+    description: "Escribe tu usuario de Instagram; es importante para que no tengas problemas con tus beneficios.",
+    label: "Usuario de Instagram",
+    placeholder: "tu_usuario",
+    autocomplete: "off",
+    normalize: cleanGlobalInstagramUsername,
+    validate: (value) => value.length >= 2,
+    invalidMessage: "Escribe un usuario de Instagram válido.",
+    saveError: "No se pudo guardar tu Instagram.",
+    eventName: "hiddenroom:ig-username-updated",
+  });
+  return completion.finally(() => {
+    instagramUsernamePromptOpen = false;
+    instagramUsernamePromptResolved = true;
+  });
+}
+
+function showGlobalWhatsappPrompt(profile, user, supabase) {
+  if (!user?.id || profile?.whatsapp || whatsappPromptOpen || whatsappPromptResolved) return Promise.resolve(true);
+  whatsappPromptOpen = true;
+  const completion = showGlobalProfileFieldPrompt({
+    profile,
+    user,
+    supabase,
+    field: "whatsapp",
+    title: "Actualiza tu número de celular",
+    description: "Necesitamos un número de WhatsApp para contactarte sobre tu cuenta y beneficios.",
+    label: "WhatsApp / celular",
+    placeholder: "5512345678",
+    inputType: "tel",
+    autocomplete: "tel",
+    normalize: cleanGlobalWhatsapp,
+    validate: (value) => value.length >= 10,
+    invalidMessage: "Escribe un número de celular válido.",
+    saveError: "No se pudo guardar tu número de celular.",
+    eventName: "hiddenroom:whatsapp-updated",
+  });
+  return completion.finally(() => {
+    whatsappPromptOpen = false;
+    whatsappPromptResolved = true;
+  });
+}
+
+function scheduleGlobalProfilePrompts(profile, user, supabase) {
+  if (!user?.id) return Promise.resolve(true);
+  if (globalProfilePromptUserId === user.id && globalProfilePromptPromise) return globalProfilePromptPromise;
+  globalProfilePromptUserId = user.id;
+  globalProfilePromptPromise = enqueueGlobalModal(async () => {
+    if (!profile?.ig_username) {
+      const instagramReady = await showGlobalInstagramUsernamePrompt(profile, user, supabase);
+      if (!instagramReady) return false;
+    }
+    if (!profile?.whatsapp) {
+      const whatsappReady = await showGlobalWhatsappPrompt(profile, user, supabase);
+      if (!whatsappReady) return false;
+    }
+    return true;
+  });
+  return globalProfilePromptPromise;
+}
+
+window.HiddenRoomProfilePrompts = window.HiddenRoomProfilePrompts || {
+  schedule: scheduleGlobalProfilePrompts,
+};
 function authenticatedHeaderMarkup(profile, user, unread = 0, drawer = false) {
   const name = globalDisplayName(profile, user);
   const avatarSrc = globalAvatarSrc(profile?.avatar_url);
@@ -1327,7 +1432,7 @@ async function hydrateGlobalSession() {
     const user = session?.user || null;
     if (!user) {
       document.getElementById("hr-beat-store-invite-modal")?.remove();
-      document.body.classList.remove("hr-overlay-open");
+      releaseGlobalOverlayState();
       clearViewAsSelection();
       syncViewAsNavigation(null);
       renderViewAsBanner(null);
@@ -1360,7 +1465,7 @@ async function hydrateGlobalSession() {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("user_id,display_name,username,email,avatar_url,roles,ig_username")
+      .select("user_id,display_name,username,email,whatsapp,avatar_url,roles,ig_username")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -1442,9 +1547,9 @@ async function hydrateGlobalSession() {
     sessionTargets.forEach((target) => { target.hidden = false; });
     drawerTargets.forEach((target) => { target.hidden = false; });
     setGlobalAuthState("authenticated");
+    await scheduleGlobalProfilePrompts(profile, user, supabase);
     if (shouldLoadGlobalProducerInvite()) void ensureGlobalProducerInvite();
     renderGlobalNotifications(notifications);
-    showGlobalInstagramUsernamePrompt(profile, user, supabase);
   } catch (error) {
     syncViewAsNavigation(null);
     renderViewAsBanner(null);
@@ -1471,11 +1576,11 @@ async function hydrateGlobalInstagramUsernamePrompt() {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("id,display_name,username,email,ig_username")
+        .select("id,display_name,username,email,whatsapp,ig_username")
       .eq("id", user.id)
       .maybeSingle();
 
-    showGlobalInstagramUsernamePrompt(profile, user, supabase);
+    await scheduleGlobalProfilePrompts(profile, user, supabase);
   } catch (error) {
     console.info("[HR] No fue posible validar Instagram global:", error?.message || error);
   }
@@ -1533,7 +1638,7 @@ function releaseGlobalOverlayState() {
   const drawer = document.getElementById("hr-global-drawer");
   const backdrop = document.querySelector(".hr-global-drawer__backdrop");
   const toggle = document.querySelector(".hr-nav__mobile-toggle");
-  const instagramGate = document.getElementById("hr-instagram-username-gate");
+  const instagramGate = document.getElementById("hr-profile-ig_username-gate");
   const html = document.documentElement;
   const body = document.body;
   const staleBodyScrollMatch = body.style.top.match(/^-([\d.]+)px$/);
@@ -1569,9 +1674,19 @@ function releaseGlobalOverlayState() {
   }
 
   if (instagramGate) {
+    instagramGate._hrFinish?.(false);
     instagramGate.remove();
     instagramUsernamePromptOpen = false;
   }
+
+  const whatsappGate = document.getElementById("hr-profile-whatsapp-gate");
+  whatsappGate?._hrFinish?.(false);
+  whatsappGate?.remove();
+  whatsappPromptOpen = false;
+  instagramUsernamePromptResolved = false;
+  whatsappPromptResolved = false;
+  globalProfilePromptUserId = "";
+  globalProfilePromptPromise = null;
 }
 
 window.releaseGlobalOverlayState = releaseGlobalOverlayState;

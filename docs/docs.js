@@ -25,6 +25,15 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(date);
 }
 
+function documentAnchor(fileName) {
+  const name = String(fileName || '').toLocaleLowerCase('es-MX');
+  if (name.includes('privacidad')) return 'politica-de-privacidad';
+  if (name.includes('beat store')) return 'terminos-beat-store';
+  if (name.includes('hiddenroom.mx')) return 'terminos-hidden-room';
+  if (name.includes('membres') || name.includes('estudio')) return 'terminos-membresia-estudio';
+  return '';
+}
+
 function setStatus(message, isError = false) {
   status.textContent = message;
   status.classList.toggle("is-error", isError);
@@ -44,8 +53,9 @@ function renderDocuments(files) {
   list.innerHTML = pdfs.map((file) => {
     const viewUrl = String(file.view_url || "");
     const downloadUrl = String(file.download_url || "");
+    const anchor = documentAnchor(file.name);
     return `
-      <article class="docs-file-card db-card-list__item">
+      <article${anchor ? ` id="${anchor}"` : ''} class="docs-file-card db-card-list__item">
         <div class="docs-file-card__main">
           <span class="docs-file-card__type">PDF</span>
           <h2 class="docs-file-card__title">${escapeHtml(file.name)}</h2>

@@ -210,7 +210,19 @@ export function renderLegalAcceptance(requirement, { inputId = '' } = {}) {
   `;
 }
 
-export async function openLegalAcceptanceGate({ service, requirements, title = 'Aceptación requerida', eyebrow = 'Hidden Room · Documento legal' } = {}) {
+let legalGateQueue = Promise.resolve();
+
+export function openLegalAcceptanceGate(options = {}) {
+  const run = () => openLegalAcceptanceGateNow(options);
+  if (globalThis.HiddenRoomModalQueue?.enqueue) {
+    return globalThis.HiddenRoomModalQueue.enqueue(run);
+  }
+  const result = legalGateQueue.then(run, run);
+  legalGateQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+async function openLegalAcceptanceGateNow({ service, requirements, title = 'Aceptación requerida', eyebrow = 'Hidden Room · Documento legal' } = {}) {
   const pending = normalizeRequirementList(requirements).filter((requirement) => requirement.is_required && !requirement.has_accepted);
   if (!pending.length) return true;
 
@@ -269,9 +281,14 @@ export async function openLegalAcceptanceGate({ service, requirements, title = '
 
   return new Promise((resolve) => {
     let settled = false;
+    const handleKeydown = (event) => {
+      if (event.key !== 'Escape' || settled) return;
+      finish(false);
+    };
     const finish = (value) => {
       if (settled) return;
       settled = true;
+      document.removeEventListener('keydown', handleKeydown);
       overlay.remove();
       document.body.classList.remove('hr-overlay-open');
       resolve(value);
@@ -301,11 +318,7 @@ export async function openLegalAcceptanceGate({ service, requirements, title = '
         submit.disabled = false;
       }
     });
-    document.addEventListener('keydown', function handleKeydown(event) {
-      if (event.key !== 'Escape' || settled) return;
-      document.removeEventListener('keydown', handleKeydown);
-      finish(false);
-    });
+    document.addEventListener('keydown', handleKeydown);
     window.requestAnimationFrame(() => inputs[0]?.focus());
   });
 }

@@ -13,15 +13,26 @@ La migración es:
 
 `supabase/migrations/20261030110000_legal_documents_consent.sql`
 
+El enlace de los PDFs públicos actuales de Raíz Cloud al flujo de Beat Store
+se encuentra en:
+
+`supabase/migrations/20261031100000_link_public_docs_legal_contracts.sql`
+
 El sistema no crea contenido legal de negocio por sí mismo. El administrador debe crear el documento y publicar su primera versión desde Portal > ERP / Operaciones > Documentos legales.
 
 ## Componentes
 
 - Servicio reutilizable: `assets/js/legal-service.js`.
 - Gate responsive de aceptación: `assets/css/legal.css` y `openLegalAcceptanceGate()`.
+- Las llamadas al gate se serializan para que nunca se rendericen dos gates legales al mismo tiempo.
 - Administración: sección `erp-legal` en `portal/dashboard.js`.
 - Integración inicial: `store/beat_store/new-beat.js`; antes de enviar un beat a revisión consulta los requisitos de `beatstore / publish_beat`.
-- Invitación de Beat Store: `store/beat_store/producer-invite.js`; si existe una regla publicada para ese contexto, registra la aceptación al aceptar la invitación.
+- Invitación de Beat Store: `store/beat_store/producer-invite.js`; registra el paquete de aceptación y muestra invitaciones pendientes una por una.
+
+Actualmente `beatstore / publish_beat` requiere el contrato de Beat Store, los
+términos generales de Hidden Room y el aviso de privacidad publicados desde
+Raíz Cloud `/docs`. La aceptación queda vinculada a la versión y al hash de
+cada PDF.
 
 ## Crear el contrato de productores de Beat Store
 

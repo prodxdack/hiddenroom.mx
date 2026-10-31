@@ -1,9 +1,12 @@
-import { createLegalService } from '../../assets/js/legal-service.js?v=20261030-legal-consent-v1';
+import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-legal-queue-v1';
 
 const BEAT_STORE_INVITE_TYPE = "beat-store-invite";
 const supabase = await window.HiddenRoomSupabase.getClient();
 const legalService = createLegalService(supabase);
 const lifecycle = new AbortController();
+const inviteQueue = { notifications: [], index: 0, username: '' };
+let activeInviteFinish = null;
+let activeInviteQueueIndex = null;
 
 window.HiddenRoomApp?.register(() => {
   lifecycle.abort();
@@ -20,25 +23,28 @@ async function initProducerInvite() {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("user_id,username,roles")
+    .select("user_id,display_name,username,email,whatsapp,ig_username,roles")
     .eq("id", session.user.id)
     .maybeSingle();
 
   if (isAdmin(profile?.roles)) return;
 
+  await window.HiddenRoomProfilePrompts?.schedule?.(profile, session.user, supabase);
+
   const notificationUserIds = [...new Set([session.user.id, profile?.user_id].filter(Boolean).map(String))];
-  const { data: notification, error } = await supabase
+  const { data: notifications, error } = await supabase
     .from("notifications")
-    .select("id")
+    .select("id,created_at")
     .in("user_id", notificationUserIds)
     .eq("type", BEAT_STORE_INVITE_TYPE)
     .eq("read", false)
     .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
 
-  if (error || !notification?.id) return;
-  showInviteModal(notification.id, profile?.username);
+  if (error || !notifications?.length) return;
+  inviteQueue.notifications = notifications;
+  inviteQueue.username = profile?.username || '';
+  showNextInviteModal();
 }
 
 function isAdmin(rawRoles) {
@@ -46,6 +52,22 @@ function isAdmin(rawRoles) {
     .split(",")
     .map((role) => role.trim().toLowerCase())
     .includes("admin");
+}
+
+function showNextInviteModal() {
+  const notification = inviteQueue.notifications[inviteQueue.index];
+  if (!notification?.id) return;
+  const queueIndex = inviteQueue.index;
+  if (activeInviteQueueIndex === queueIndex) return;
+  activeInviteQueueIndex = queueIndex;
+  const show = () => showInviteModal(notification.id, inviteQueue.username);
+  const queued = window.HiddenRoomModalQueue?.enqueue
+    ? window.HiddenRoomModalQueue.enqueue(show)
+    : Promise.resolve().then(show);
+  queued.finally(() => {
+    if (activeInviteQueueIndex === queueIndex) activeInviteQueueIndex = null;
+    if (inviteQueue.index > queueIndex) window.setTimeout(showNextInviteModal, 0);
+  });
 }
 
 function showInviteModal(notificationId, rawUsername) {
@@ -69,7 +91,7 @@ function showInviteModal(notificationId, rawUsername) {
       <div class="beat-store-invite-modal__legal">
         <label class="beat-store-invite-modal__consent">
           <input type="checkbox" data-beat-store-invite-consent>
-          <span>Al hacer uso de nuestra plataforma, confirmas que aceptas los <a href="/docs/" target="_blank" rel="noopener noreferrer">términos y condiciones</a> y la <a href="/docs/#politica-de-privacidad" target="_blank" rel="noopener noreferrer">política de privacidad</a>.</span>
+          <span>Al hacer uso de nuestra plataforma, confirmas que aceptas los <a href="/docs/#terminos-beat-store" target="_blank" rel="noopener noreferrer">términos y condiciones</a> y la <a href="/docs/#politica-de-privacidad" target="_blank" rel="noopener noreferrer">política de privacidad</a>.</span>
         </label>
         <p class="beat-store-invite-modal__status" data-beat-store-invite-status role="status" aria-live="polite"></p>
         <button class="primary-button beat-store-invite-modal__button" type="button" data-beat-store-invite-accept aria-disabled="true" disabled>Aceptar</button>
@@ -91,7 +113,7 @@ function showInviteModal(notificationId, rawUsername) {
 
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay || event.target.closest("[data-beat-store-invite-close]")) {
-      closeInviteModal();
+      closeInviteModal(false);
       return;
     }
     const acceptButton = event.target.closest("[data-beat-store-invite-accept]");
@@ -99,10 +121,14 @@ function showInviteModal(notificationId, rawUsername) {
   }, { signal: lifecycle.signal });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && document.getElementById("hr-beat-store-invite-modal")) {
-      closeInviteModal();
+      closeInviteModal(false);
     }
   }, { signal: lifecycle.signal });
   window.requestAnimationFrame(() => consent?.focus());
+
+  return new Promise((resolve) => {
+    activeInviteFinish = resolve;
+  });
 }
 
 async function acceptInviteModal(notificationId, overlay) {
@@ -139,7 +165,8 @@ async function acceptInviteModal(notificationId, overlay) {
         .eq("id", notificationId);
       if (error) throw error;
     }
-    closeInviteModal();
+    inviteQueue.index += 1;
+    closeInviteModal(true);
   } catch (error) {
     console.error("[HR] Beat Store invite acceptance:", error);
     if (status) status.textContent = error.message || "No se pudo registrar la aceptación.";
@@ -151,7 +178,10 @@ function isLegalMigrationUnavailable(error) {
   return /legal_get_requirements|does not exist|not found/i.test(String(error?.message || error || ""));
 }
 
-function closeInviteModal() {
+function closeInviteModal(result = false) {
+  const finish = activeInviteFinish;
+  activeInviteFinish = null;
   document.getElementById("hr-beat-store-invite-modal")?.remove();
   document.body.classList.remove("hr-overlay-open");
+  finish?.(result);
 }

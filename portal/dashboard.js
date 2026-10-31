@@ -18,7 +18,7 @@
 
 import { cloudSourceToFile, createCloudSourcePicker, joinCloudPath, walkCloudSource } from "../assets/js/cloud-source-picker.js?v=20261026-cloud-picker-lock-v1";
 import { getHrDisclosureState, renderHrDisclosure } from "../assets/js/hr-disclosure.js?v=20261028-hr-disclosure-v2";
-import { createLegalService, sha256Hex } from "../assets/js/legal-service.js?v=20261030-legal-consent-v1";
+import { createLegalService, sha256Hex } from "../assets/js/legal-service.js?v=20261031-legal-queue-v1";
 import { initProfileAvatarEditor, resolveProfileAvatarUrl } from "../assets/js/profile-avatar-editor.js?v=20261030-profile-avatar-editor-v1";
 
 'use strict';
@@ -14968,6 +14968,8 @@ async function init() {
     return; // init() re-runs after reload inside the modal on success.
   }
   // ── End onboarding gate ──────────────────────────────────────────
+
+  await window.HiddenRoomProfilePrompts?.schedule?.(state.user, state.user, supabase);
 
   navigate(initialSectionKey());
 }
