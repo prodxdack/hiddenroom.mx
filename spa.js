@@ -39,7 +39,11 @@ function hrSpaCanPrefetch(url) {
 }
 function hrSpaEnsureRoot() {
   let root = document.getElementById('hr-spa-content');
-  if (root) return root;
+  if (root) {
+    const copyEditor = document.getElementById('hr-copy-editor');
+    if (copyEditor?.parentElement === root) document.body.appendChild(copyEditor);
+    return root;
+  }
   document.head.querySelectorAll('link[rel="stylesheet"]').forEach((link) => {
     if (!hrSpaIsGlobalStylesheet(link) && link.href.startsWith(window.location.origin)) {
       link.setAttribute('data-hr-spa-page-asset', '');
@@ -47,7 +51,7 @@ function hrSpaEnsureRoot() {
   });
   root = document.createElement('div');
   root.id = 'hr-spa-content';
-  const keep = new Set(['hr-global-nav', 'cursor', 'cursorRing', 'hr-beat-player', 'hr-beat-player-fullscreen']);
+  const keep = new Set(['hr-global-nav', 'hr-copy-editor', 'cursor', 'cursorRing', 'hr-beat-player', 'hr-beat-player-fullscreen']);
   [...document.body.children].forEach((child) => {
     if (keep.has(child.id) || child.matches('.hr-global-drawer, .hr-global-drawer__backdrop') || child.tagName === 'SCRIPT') return;
     root.appendChild(child);
