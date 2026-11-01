@@ -6,7 +6,9 @@ const HR_SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const HR_SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 const HR_CLOUD_ORIGIN = "https://cloud.hiddenroom.mx";
 const HR_PRODUCER_INVITE_CSS = "/store/beat_store/producer-invite.css?v=20261030-legal-consent-v1";
-const HR_PRODUCER_INVITE_MODULE = "/store/beat_store/producer-invite.js?v=20261031-legal-queue-v1";
+const HR_PRODUCER_INVITE_MODULE = "/store/beat_store/producer-invite.js?v=20261031-global-legal-gate-v1";
+const HR_LEGAL_SERVICE_MODULE = "/assets/js/legal-service.js?v=20261031-global-legal-gate-v1";
+const HR_LEGAL_CSS = "/assets/css/legal.css?v=20261031-global-legal-gate-v1";
 // Keep the auth session across page changes and deployments.
 // The default storage key is intentional so existing sessions remain valid.
 const HR_SUPABASE_AUTH_OPTIONS = {
@@ -1284,6 +1286,36 @@ function scheduleGlobalProfilePrompts(profile, user, supabase) {
 window.HiddenRoomProfilePrompts = window.HiddenRoomProfilePrompts || {
   schedule: scheduleGlobalProfilePrompts,
 };
+
+let globalLegalAcceptancePromise = null;
+
+async function ensureGlobalLegalAcceptance(supabase) {
+  if (globalLegalAcceptancePromise) return globalLegalAcceptancePromise;
+  globalLegalAcceptancePromise = (async () => {
+    try {
+      if (!document.getElementById("hr-global-legal-css")) {
+        const stylesheet = document.createElement("link");
+        stylesheet.id = "hr-global-legal-css";
+        stylesheet.rel = "stylesheet";
+        stylesheet.href = HR_LEGAL_CSS;
+        document.head.appendChild(stylesheet);
+      }
+      const legal = await import(HR_LEGAL_SERVICE_MODULE);
+      const service = legal.createLegalService(supabase);
+      const requirements = await service.getRequirements({ module: "global", action: "site_access" });
+      return legal.openGlobalLegalAcceptanceBanner({ service, requirements });
+    } catch (error) {
+      globalLegalAcceptancePromise = null;
+      console.warn("[HR] No se pudo cargar la aceptación legal global:", error?.message || error);
+      return true;
+    }
+  })();
+  return globalLegalAcceptancePromise;
+}
+
+window.HiddenRoomGlobalLegal = window.HiddenRoomGlobalLegal || {
+  ensure: ensureGlobalLegalAcceptance,
+};
 function authenticatedHeaderMarkup(profile, user, unread = 0, drawer = false) {
   const name = globalDisplayName(profile, user);
   const avatarSrc = globalAvatarSrc(profile?.avatar_url);
@@ -1548,6 +1580,7 @@ async function hydrateGlobalSession() {
     drawerTargets.forEach((target) => { target.hidden = false; });
     setGlobalAuthState("authenticated");
     await scheduleGlobalProfilePrompts(profile, user, supabase);
+    await ensureGlobalLegalAcceptance(supabase);
     if (shouldLoadGlobalProducerInvite()) void ensureGlobalProducerInvite();
     renderGlobalNotifications(notifications);
   } catch (error) {
@@ -1682,6 +1715,9 @@ function releaseGlobalOverlayState() {
   const whatsappGate = document.getElementById("hr-profile-whatsapp-gate");
   whatsappGate?._hrFinish?.(false);
   whatsappGate?.remove();
+  const globalLegalGate = document.getElementById("hr-global-legal-gate");
+  globalLegalGate?._hrFinish?.(false);
+  globalLegalGate?.remove();
   whatsappPromptOpen = false;
   instagramUsernamePromptResolved = false;
   whatsappPromptResolved = false;
@@ -3446,6 +3482,7 @@ function renderGlobalNav() {
   if (!target) return;
 
   releaseGlobalOverlayState();
+      globalLegalAcceptancePromise = null;
   document.body.classList.add("hr-has-global-nav");
   const module = document.body.dataset.hrContext || "home";
   const accent = module === "media" ? "media" : "brand";

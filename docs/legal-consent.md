@@ -18,21 +18,26 @@ se encuentra en:
 
 `supabase/migrations/20261031100000_link_public_docs_legal_contracts.sql`
 
+La separación entre aceptación general y Beat Store se encuentra en:
+
+`supabase/migrations/20261101000852_global_legal_gate_rules.sql`
+
 El sistema no crea contenido legal de negocio por sí mismo. El administrador debe crear el documento y publicar su primera versión desde Portal > ERP / Operaciones > Documentos legales.
 
 ## Componentes
 
 - Servicio reutilizable: `assets/js/legal-service.js`.
 - Gate responsive de aceptación: `assets/css/legal.css` y `openLegalAcceptanceGate()`.
-- Las llamadas al gate se serializan para que nunca se rendericen dos gates legales al mismo tiempo.
+- Gate global inferior: `openGlobalLegalAcceptanceBanner()` bloquea el sitio hasta aceptar términos generales y privacidad.
+- Las llamadas a modales y gates se serializan con `window.HiddenRoomModalQueue` para que nunca se encimen.
 - Administración: sección `erp-legal` en `portal/dashboard.js`.
 - Integración inicial: `store/beat_store/new-beat.js`; antes de enviar un beat a revisión consulta los requisitos de `beatstore / publish_beat`.
 - Invitación de Beat Store: `store/beat_store/producer-invite.js`; registra el paquete de aceptación y muestra invitaciones pendientes una por una.
 
-Actualmente `beatstore / publish_beat` requiere el contrato de Beat Store, los
-términos generales de Hidden Room y el aviso de privacidad publicados desde
-Raíz Cloud `/docs`. La aceptación queda vinculada a la versión y al hash de
-cada PDF.
+La regla `global / site_access` requiere los términos generales de Hidden Room
+y el aviso de privacidad publicados desde Raíz Cloud `/docs`. La regla
+`beatstore / publish_beat` requiere únicamente el contrato de Beat Store. Cada
+aceptación queda vinculada a la versión y al hash del PDF correspondiente.
 
 ## Crear el contrato de productores de Beat Store
 
@@ -66,6 +71,10 @@ Las tablas de aceptación no permiten inserts directos desde el navegador; la es
 Prueba SQL local:
 
 `supabase/tests/legal_documents_consent.sql`
+
+Separación entre gate global y Beat Store:
+
+`supabase/tests/global_legal_gate.sql`
 
 Validaciones frontend:
 

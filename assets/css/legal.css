@@ -113,6 +113,50 @@
 
 .hr-legal-gate__actions button { min-height: 44px; }
 
+.hr-global-legal-gate {
+  position: fixed;
+  inset: 0;
+  z-index: var(--hr-z-overlay, 10001);
+  pointer-events: auto;
+}
+
+.hr-global-legal-gate__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .72);
+  backdrop-filter: blur(2px);
+}
+
+.hr-global-legal-gate__panel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 520px);
+  gap: 20px;
+  align-items: end;
+  padding: 18px max(20px, env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  border-top: 1px solid rgba(240, 236, 228, .2);
+  background: rgba(16, 16, 16, .98);
+  box-shadow: 0 -18px 60px rgba(0, 0, 0, .42);
+}
+
+.hr-global-legal-gate__copy,
+.hr-global-legal-gate__actions { min-width: 0; }
+.hr-global-legal-gate__eyebrow { margin: 0 0 6px; color: var(--red, #ed1c24); font: 500 10px/1.4 var(--font-mono, monospace); letter-spacing: .12em; text-transform: uppercase; }
+.hr-global-legal-gate__copy h2 { margin: 0 0 6px; font-size: clamp(18px, 2.4vw, 26px); }
+.hr-global-legal-gate__copy p:last-child { margin: 0; color: var(--hr-muted, #aaa); font-size: 13px; line-height: 1.5; }
+.hr-global-legal-gate__copy a { color: var(--hr-text, #f0ece4); text-decoration: underline; text-underline-offset: 2px; }
+.hr-global-legal-gate__consent { display: flex; gap: 10px; align-items: flex-start; color: var(--hr-text, #f0ece4); font-size: 13px; line-height: 1.45; cursor: pointer; }
+.hr-global-legal-gate__consent input { flex: 0 0 auto; margin-top: 3px; accent-color: var(--red, #ed1c24); }
+.hr-global-legal-gate__error { min-height: 18px; margin: 8px 0 0; color: #ff8d8d; font-size: 12px; }
+.hr-global-legal-gate__actions button { width: 100%; min-height: 44px; margin-top: 8px; }
+
+@media (max-width: 720px) {
+  .hr-global-legal-gate__panel { grid-template-columns: 1fr; gap: 12px; padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+}
+
 @media (max-width: 520px) {
   .hr-legal-gate { padding: 8px; }
   .hr-legal-gate__dialog { max-height: calc(100dvh - 16px); padding: 18px; }

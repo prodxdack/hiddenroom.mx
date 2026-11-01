@@ -323,6 +323,106 @@ async function openLegalAcceptanceGateNow({ service, requirements, title = 'Acep
   });
 }
 
+let globalLegalBannerQueue = Promise.resolve();
+
+export function openGlobalLegalAcceptanceBanner(options = {}) {
+  const run = () => openGlobalLegalAcceptanceBannerNow(options);
+  const result = globalThis.HiddenRoomModalQueue?.enqueue
+    ? globalThis.HiddenRoomModalQueue.enqueue(run)
+    : globalLegalBannerQueue.then(run, run);
+  globalLegalBannerQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+async function openGlobalLegalAcceptanceBannerNow({ service, requirements, title = 'Protegemos tus datos' } = {}) {
+  const pending = normalizeRequirementList(requirements)
+    .filter((requirement) => requirement.is_required && !requirement.has_accepted);
+  if (!pending.length) return true;
+
+  const existing = document.getElementById('hr-global-legal-gate');
+  if (existing?._hrCompletion) return existing._hrCompletion;
+
+  const links = pending.map((requirement) => {
+    const href = requirement.document_key === 'hiddenroom-privacy'
+      ? '/docs/#politica-de-privacidad'
+      : '/docs/#terminos-hidden-room';
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(requirement.name)}</a>`;
+  });
+
+  const overlay = document.createElement('div');
+  overlay.id = 'hr-global-legal-gate';
+  overlay.className = 'hr-global-legal-gate';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'hr-global-legal-gate-title');
+  overlay.innerHTML = `
+    <div class="hr-global-legal-gate__backdrop"></div>
+    <section class="hr-global-legal-gate__panel">
+      <div class="hr-global-legal-gate__copy">
+        <p class="hr-global-legal-gate__eyebrow">Hidden Room · Aviso importante</p>
+        <h2 id="hr-global-legal-gate-title">${escapeHtml(title)}</h2>
+        <p>Tus datos están seguros en nuestro sitio. Antes de continuar, revisa y acepta nuestros ${links.join(' y ')}.</p>
+      </div>
+      <div class="hr-global-legal-gate__actions">
+        <label class="hr-global-legal-gate__consent">
+          <input type="checkbox" data-global-legal-consent>
+          <span>Acepto los términos y condiciones de uso y la política de privacidad.</span>
+        </label>
+        <p class="hr-global-legal-gate__error" data-global-legal-error role="alert"></p>
+        <button type="button" class="primary-button" data-global-legal-submit disabled>Aceptar y continuar</button>
+      </div>
+    </section>
+  `;
+
+  let resolveCompletion;
+  let settled = false;
+  const completion = new Promise((resolve) => { resolveCompletion = resolve; });
+  overlay._hrCompletion = completion;
+  const finish = (value) => {
+    if (settled) return;
+    settled = true;
+    document.removeEventListener('keydown', handleKeydown);
+    overlay.remove();
+    document.body.classList.remove('hr-overlay-open');
+    resolveCompletion(value);
+  };
+  const handleKeydown = (event) => {
+    if (event.key === 'Escape') event.preventDefault();
+  };
+
+  document.body.appendChild(overlay);
+  document.body.classList.add('hr-overlay-open');
+  overlay._hrFinish = finish;
+  const consent = overlay.querySelector('[data-global-legal-consent]');
+  const submit = overlay.querySelector('[data-global-legal-submit]');
+  const error = overlay.querySelector('[data-global-legal-error]');
+  consent?.addEventListener('change', () => { submit.disabled = !consent.checked; });
+  overlay.addEventListener('click', async (event) => {
+    if (!event.target.closest('[data-global-legal-submit]') || submit.disabled) return;
+    submit.disabled = true;
+    error.textContent = '';
+    try {
+      for (const requirement of pending) {
+        await service.accept({
+          documentId: requirement.document_id,
+          versionId: requirement.version_id,
+          module: requirement.module_key,
+          action: requirement.requested_action_key || (requirement.action_key === '*' ? null : requirement.action_key),
+          accountType: requirement.account_type || null,
+          method: 'checkbox',
+        });
+      }
+      finish(true);
+    } catch (acceptError) {
+      error.textContent = acceptError.message || 'No se pudo registrar la aceptación.';
+      submit.disabled = false;
+    }
+  });
+  document.addEventListener('keydown', handleKeydown);
+  window.requestAnimationFrame(() => consent?.focus());
+  return completion;
+}
+
 export const LegalAcceptance = renderLegalAcceptance;
 export const LegalAcceptanceGate = openLegalAcceptanceGate;
 
@@ -331,6 +431,7 @@ if (typeof window !== 'undefined') {
     createLegalService,
     LegalAcceptance,
     LegalAcceptanceGate,
+    openGlobalLegalAcceptanceBanner,
     openLegalAcceptanceGate,
     renderLegalAcceptance,
     sha256Hex,

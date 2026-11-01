@@ -1,4 +1,4 @@
-import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-legal-queue-v1';
+import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v1';
 
 const BEAT_STORE_INVITE_TYPE = "beat-store-invite";
 const supabase = await window.HiddenRoomSupabase.getClient();
@@ -36,6 +36,7 @@ async function initProducerInvite() {
   if (!document.body.classList.contains("db-body")) {
     await window.HiddenRoomProfilePrompts?.schedule?.(profile, session.user, supabase);
   }
+  await window.HiddenRoomGlobalLegal?.ensure?.(supabase);
 
   const notificationUserIds = [...new Set([session.user.id, profile?.user_id].filter(Boolean).map(String))];
   const { data: notifications, error } = await supabase
@@ -106,7 +107,7 @@ function showInviteModal(notificationId, rawUsername) {
       <div class="beat-store-invite-modal__legal">
         <label class="beat-store-invite-modal__consent">
           <input type="checkbox" data-beat-store-invite-consent>
-          <span>Al hacer uso de nuestra plataforma, confirmas que aceptas los <a href="/docs/#terminos-beat-store" target="_blank" rel="noopener noreferrer">términos y condiciones</a> y la <a href="/docs/#politica-de-privacidad" target="_blank" rel="noopener noreferrer">política de privacidad</a>.</span>
+          <span>Al usar Beat Store, confirmas que aceptas los <a href="/docs/#terminos-beat-store" target="_blank" rel="noopener noreferrer">términos y condiciones de Beat Store</a>.</span>
         </label>
         <p class="beat-store-invite-modal__status" data-beat-store-invite-status role="status" aria-live="polite"></p>
         <button class="primary-button beat-store-invite-modal__button" type="button" data-beat-store-invite-accept aria-disabled="true" disabled>Aceptar</button>
@@ -161,7 +162,11 @@ async function acceptInviteModal(notificationId, overlay) {
       console.warn("[HR] legal acceptance is not installed yet:", error);
     }
 
-    for (const requirement of requirements.filter((item) => item.is_required && !item.has_accepted)) {
+    for (const requirement of requirements.filter((item) =>
+      item.document_key === "beatstore-producer-terms"
+      && item.is_required
+      && !item.has_accepted,
+    )) {
       await legalService.accept({
         documentId: requirement.document_id,
         versionId: requirement.version_id,

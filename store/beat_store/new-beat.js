@@ -1,5 +1,5 @@
 import { createCloudSourcePicker } from '../../assets/js/cloud-source-picker.js';
-import { createLegalService, openLegalAcceptanceGate } from '../../assets/js/legal-service.js?v=20261031-legal-queue-v1';
+import { createLegalService, openLegalAcceptanceGate } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v1';
 
 const supabase = await window.HiddenRoomSupabase.getClient();
 const legalService = createLegalService(supabase);
@@ -158,7 +158,11 @@ async function ensureBeatStoreLegalAcceptance() {
     return true;
   }
 
-  const pending = requirements.filter((requirement) => requirement.is_required && !requirement.has_accepted);
+  const pending = requirements.filter((requirement) =>
+    requirement.document_key === 'beatstore-producer-terms'
+    && requirement.is_required
+    && !requirement.has_accepted,
+  );
   if (!pending.length) return true;
   return openLegalAcceptanceGate({
     service: legalService,
