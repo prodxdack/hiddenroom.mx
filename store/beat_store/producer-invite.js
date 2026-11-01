@@ -1,10 +1,15 @@
-import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v5';
+import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v6';
 
 const BEAT_STORE_INVITE_TYPE = "beat-store-invite";
+const BEAT_UPLOAD_PERMISSION_KEY = "beats.upload";
+const BEAT_UPLOAD_PLAN_LABELS = {
+  socio_embajador: "Socio Embajador",
+  pago: "Pago",
+};
 const supabase = await window.HiddenRoomSupabase.getClient();
 const legalService = createLegalService(supabase);
 const lifecycle = new AbortController();
-const inviteQueue = { notifications: [], index: 0, username: '' };
+const inviteQueue = { notifications: [], index: 0, username: '', access: null };
 let activeInviteFinish = null;
 let activeInviteQueueIndex = null;
 
@@ -51,7 +56,30 @@ async function initProducerInvite() {
   if (error || !notifications?.length) return;
   inviteQueue.notifications = notifications;
   inviteQueue.username = profile?.username || '';
+  inviteQueue.access = await resolveBeatUploadAccess(session.user.id);
   showNextInviteModal();
+}
+
+async function resolveBeatUploadAccess(userId) {
+  const { data, error } = await supabase
+    .from("user_permissions")
+    .select("permission_key")
+    .eq("user_id", userId)
+    .like("permission_key", `${BEAT_UPLOAD_PERMISSION_KEY}.%`);
+  if (error) {
+    console.info("[HR] No fue posible resolver el plan de Beat Store:", error.message);
+    return { plan: "Plan pendiente", limit: "Límite pendiente" };
+  }
+
+  const keys = (data || []).map((row) => String(row.permission_key || "").trim().toLowerCase());
+  const planKey = keys.find((key) => key.startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.plan.`));
+  const limitKey = keys.find((key) => key.startsWith(`${BEAT_UPLOAD_PERMISSION_KEY}.limit.`));
+  const planValue = planKey?.slice(`${BEAT_UPLOAD_PERMISSION_KEY}.plan.`.length) || "";
+  const limitValue = limitKey?.slice(`${BEAT_UPLOAD_PERMISSION_KEY}.limit.`.length) || "";
+  return {
+    plan: BEAT_UPLOAD_PLAN_LABELS[planValue] || "Plan pendiente",
+    limit: /^\d+$/.test(limitValue) ? `${new Intl.NumberFormat("es-MX").format(Number(limitValue))} subidas` : "Límite pendiente",
+  };
 }
 
 function waitForPortalOnboardingReady() {
@@ -76,7 +104,7 @@ function showNextInviteModal() {
   const queueIndex = inviteQueue.index;
   if (activeInviteQueueIndex === queueIndex) return;
   activeInviteQueueIndex = queueIndex;
-  const show = () => showInviteModal(notification.id, inviteQueue.username);
+  const show = () => showInviteModal(notification.id, inviteQueue.username, inviteQueue.access);
   const queued = window.HiddenRoomModalQueue?.enqueue
     ? window.HiddenRoomModalQueue.enqueue(show)
     : Promise.resolve().then(show);
@@ -86,7 +114,7 @@ function showNextInviteModal() {
   });
 }
 
-function showInviteModal(notificationId, rawUsername) {
+function showInviteModal(notificationId, rawUsername, access) {
   closeInviteModal();
 
   const overlay = document.createElement("div");
@@ -100,6 +128,11 @@ function showInviteModal(notificationId, rawUsername) {
     <section class="beat-store-invite-modal__dialog hr-panel">
       <p class="beat-store-invite-modal__eyebrow">Beat Store · Hidden Room</p>
       <h2 id="beat-store-invite-title"><span>¡BIENVENIDO A</span><span>BEAT STORE,</span><span data-beat-store-invite-username></span></h2>
+      <div class="beat-store-invite-modal__plan" aria-label="Plan de productor">
+        <span class="beat-store-invite-modal__plan-label">PLAN DE PRODUCTOR</span>
+        <strong data-beat-store-invite-plan></strong>
+        <span data-beat-store-invite-limit></span>
+      </div>
       <div class="beat-store-invite-modal__copy">
         <p>Esperamos que nuestra plataforma te sea de gran ayuda para generar ingresos y dar a conocer tus beats. Si tienes quejas o sugerencias no dudes en contactarnos por WhatsApp o con tu PR.</p>
         <p class="beat-store-invite-modal__signature">— Equipo de Hidden Room</p>
@@ -117,6 +150,8 @@ function showInviteModal(notificationId, rawUsername) {
 
   const username = String(rawUsername || "PRODUCTOR").trim().replace(/^@+/, "") || "PRODUCTOR";
   overlay.querySelector("[data-beat-store-invite-username]").textContent = `@${username}`;
+  overlay.querySelector("[data-beat-store-invite-plan]").textContent = access?.plan || "Plan pendiente";
+  overlay.querySelector("[data-beat-store-invite-limit]").textContent = access?.limit || "Límite pendiente";
   document.body.appendChild(overlay);
   document.body.classList.add("hr-overlay-open");
 

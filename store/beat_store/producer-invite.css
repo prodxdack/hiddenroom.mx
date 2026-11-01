@@ -51,6 +51,26 @@
 .beat-store-invite-modal h2 span { display: block; }
 .beat-store-invite-modal h2 [data-beat-store-invite-username] { color: var(--hr-red, #e21b1b); }
 
+.beat-store-invite-modal__plan {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--hr-border, rgba(255, 255, 255, .14));
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .035);
+  color: var(--hr-text, #f0ece4);
+}
+
+.beat-store-invite-modal__plan-label {
+  color: var(--hr-red, #e21b1b);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.beat-store-invite-modal__plan strong { font-size: 16px; }
+.beat-store-invite-modal__plan span:last-child { color: var(--hr-muted, #aaa); font-size: 12px; }
+
 .beat-store-invite-modal__copy {
   display: grid;
   gap: 12px;
