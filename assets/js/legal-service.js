@@ -361,7 +361,7 @@ async function openGlobalLegalAcceptanceBannerNow({ service, requirements, title
       <div class="hr-global-legal-gate__copy">
         <p class="hr-global-legal-gate__eyebrow">Aviso importante</p>
         <h2 id="hr-global-legal-gate-title">${escapeHtml(title)}</h2>
-        <p>Tus datos están seguros en nuestro sitio. Antes de continuar, revisa y acepta nuestros ${links.join(' y ')}.</p>
+        <p>Tus datos están seguros en nuestro sitio. Antes de continuar, revisa y acepta nuestros&nbsp;${links.join(' y&nbsp;')}.</p>
       </div>
       <div class="hr-global-legal-gate__actions">
         <label class="hr-global-legal-gate__consent">

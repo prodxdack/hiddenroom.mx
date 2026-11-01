@@ -1,5 +1,5 @@
 import { createCloudSourcePicker } from '../../assets/js/cloud-source-picker.js';
-import { createLegalService, openLegalAcceptanceGate } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v3';
+import { createLegalService, openLegalAcceptanceGate } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v4';
 
 const supabase = await window.HiddenRoomSupabase.getClient();
 const legalService = createLegalService(supabase);
