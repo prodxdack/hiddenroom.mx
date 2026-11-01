@@ -1,4 +1,4 @@
-import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v6';
+import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v7';
 
 const BEAT_STORE_INVITE_TYPE = "beat-store-invite";
 const BEAT_UPLOAD_PERMISSION_KEY = "beats.upload";

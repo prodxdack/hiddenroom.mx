@@ -253,7 +253,7 @@ async function hrSpaNavigate(input, { replace = false, fromPopState = false } = 
     root.removeAttribute("aria-busy");
     if (typeof window.renderGlobalNav === 'function') window.renderGlobalNav();
     if (typeof window.initGlobalFooter === 'function') window.initGlobalFooter();
-    if (typeof window.hydrateGlobalSession === 'function') window.hydrateGlobalSession();
+    if (typeof window.hydrateGlobalSession === 'function') await window.hydrateGlobalSession();
     window.dispatchEvent(new CustomEvent('hr:spa-content-updated', { detail: { url: url.href } }));
     document.querySelectorAll('.site-status').forEach((el) => { el.textContent = window.HiddenRoomSite?.status || el.textContent; });
     await hrSpaMount(parsed, url);
