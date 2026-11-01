@@ -6,9 +6,9 @@ const HR_SUPABASE_ANON_KEY = "sb_publishable_7v_FIgTjWjJgtT1YHIAYSw_bRBmQjZO";
 const HR_SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 const HR_CLOUD_ORIGIN = "https://cloud.hiddenroom.mx";
 const HR_PRODUCER_INVITE_CSS = "/store/beat_store/producer-invite.css?v=20261030-legal-consent-v1";
-const HR_PRODUCER_INVITE_MODULE = "/store/beat_store/producer-invite.js?v=20261031-global-legal-gate-v2";
-const HR_LEGAL_SERVICE_MODULE = "/assets/js/legal-service.js?v=20261031-global-legal-gate-v2";
-const HR_LEGAL_CSS = "/assets/css/legal.css?v=20261031-global-legal-gate-v2";
+const HR_PRODUCER_INVITE_MODULE = "/store/beat_store/producer-invite.js?v=20261031-global-legal-gate-v3";
+const HR_LEGAL_SERVICE_MODULE = "/assets/js/legal-service.js?v=20261031-global-legal-gate-v3";
+const HR_LEGAL_CSS = "/assets/css/legal.css?v=20261031-global-legal-gate-v3";
 // Keep the auth session across page changes and deployments.
 // The default storage key is intentional so existing sessions remain valid.
 const HR_SUPABASE_AUTH_OPTIONS = {

@@ -1,4 +1,4 @@
-import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v2';
+import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v3';
 
 const BEAT_STORE_INVITE_TYPE = "beat-store-invite";
 const supabase = await window.HiddenRoomSupabase.getClient();

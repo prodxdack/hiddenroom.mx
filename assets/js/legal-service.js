@@ -359,7 +359,7 @@ async function openGlobalLegalAcceptanceBannerNow({ service, requirements, title
     <div class="hr-global-legal-gate__backdrop"></div>
     <section class="hr-global-legal-gate__panel">
       <div class="hr-global-legal-gate__copy">
-        <p class="hr-global-legal-gate__eyebrow">Hidden Room · Aviso importante</p>
+        <p class="hr-global-legal-gate__eyebrow">Aviso importante</p>
         <h2 id="hr-global-legal-gate-title">${escapeHtml(title)}</h2>
         <p>Tus datos están seguros en nuestro sitio. Antes de continuar, revisa y acepta nuestros ${links.join(' y ')}.</p>
       </div>
