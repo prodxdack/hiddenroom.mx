@@ -18,7 +18,7 @@
 
 import { cloudSourceToFile, createCloudSourcePicker, joinCloudPath, walkCloudSource } from "../assets/js/cloud-source-picker.js?v=20261026-cloud-picker-lock-v1";
 import { getHrDisclosureState, renderHrDisclosure } from "../assets/js/hr-disclosure.js?v=20261028-hr-disclosure-v2";
-import { createLegalService, sha256Hex } from "../assets/js/legal-service.js?v=20261031-global-legal-gate-v1";
+import { createLegalService, sha256Hex } from "../assets/js/legal-service.js?v=20261031-global-legal-gate-v2";
 import { initProfileAvatarEditor, resolveProfileAvatarUrl } from "../assets/js/profile-avatar-editor.js?v=20261030-profile-avatar-editor-v1";
 
 'use strict';
@@ -14955,6 +14955,9 @@ async function init() {
 
   await loadAndRenderNotifications();
 
+  // General terms and privacy are the first blocking modal in every flow.
+  await window.HiddenRoomGlobalLegal?.ensure?.(supabase);
+
   // ── Onboarding gate ──────────────────────────────────────────────
   // Check if the user needs to complete mandatory onboarding steps
   // before they can access the dashboard.
@@ -14970,7 +14973,6 @@ async function init() {
   // ── End onboarding gate ──────────────────────────────────────────
 
   await window.HiddenRoomProfilePrompts?.schedule?.(state.user, state.user, supabase);
-  await window.HiddenRoomGlobalLegal?.ensure?.(supabase);
   document.body.dataset.hrPortalOnboardingReady = 'true';
   window.dispatchEvent(new Event('hiddenroom:portal-onboarding-ready'));
 

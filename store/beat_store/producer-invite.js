@@ -1,4 +1,4 @@
-import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v1';
+import { createLegalService } from '../../assets/js/legal-service.js?v=20261031-global-legal-gate-v2';
 
 const BEAT_STORE_INVITE_TYPE = "beat-store-invite";
 const supabase = await window.HiddenRoomSupabase.getClient();
@@ -33,10 +33,10 @@ async function initProducerInvite() {
 
   if (isAdmin(profile?.roles)) return;
 
+  await window.HiddenRoomGlobalLegal?.ensure?.(supabase);
   if (!document.body.classList.contains("db-body")) {
     await window.HiddenRoomProfilePrompts?.schedule?.(profile, session.user, supabase);
   }
-  await window.HiddenRoomGlobalLegal?.ensure?.(supabase);
 
   const notificationUserIds = [...new Set([session.user.id, profile?.user_id].filter(Boolean).map(String))];
   const { data: notifications, error } = await supabase
