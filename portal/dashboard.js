@@ -6644,7 +6644,8 @@ async function renderErpOps() {
             <label class="db-field"><span>Username</span><input name="username" /></label>
           </div>
           <label class="db-field"><span>User ID</span><input name="user_id" autocomplete="off" /></label>
-          <label class="db-field"><span>Email</span><input type="email" name="email" required /></label>
+          <label class="db-field"><span>Email (opcional)</span><input type="email" name="email" autocomplete="email" /></label>
+          <p class="db-field__hint">Si no hay email ni WhatsApp, se generará un correo interno @hiddenroom.live para el acceso.</p>
           <div class="db-form__row">
             <label class="db-field"><span>WhatsApp</span><input name="whatsapp" /></label>
             <label class="db-field"><span>Rol</span><select name="roles">${AVAILABLE_ROLES.map((role) => optionHTML(role, role, 'client')).join('')}</select></label>
@@ -11618,7 +11619,9 @@ async function handleErpForm(form) {
     return;
   }
 
-  if ('user_id' in values && !values.user_id) {
+  // user-create may assign an operational user_id later; it creates the user
+  // record itself, so it must not pass through the existing-user guard.
+  if (type !== 'user-create' && 'user_id' in values && !values.user_id) {
     showToast('Selecciona un usuario valido.', 'error');
     return;
   }
@@ -12558,8 +12561,9 @@ async function handleOperationReceipt(form, options = {}) {
 async function handleAdminUserCreate(values) {
   if (!requireAdminMutation()) return false;
 
-  const email = values.email?.trim();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const email = String(values.email ?? '').trim().toLowerCase();
+  const whatsapp = String(values.whatsapp ?? '').replace(/\D/g, '');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showToast('Email invalido.', 'error');
     return false;
   }
@@ -12567,12 +12571,12 @@ async function handleAdminUserCreate(values) {
   try {
     const { data, error } = await supabase.functions.invoke('admin-create-user', {
       body: {
-        email,
+        email: email || null,
         profile: {
           display_name: values.display_name ?? null,
           username: values.username ?? null,
-          user_id: values.user_id ?? null,
-          whatsapp: values.whatsapp ?? null,
+          user_id: String(values.user_id ?? '').trim() || null,
+          whatsapp: whatsapp || null,
           roles: values.roles ?? 'client',
         },
       },
@@ -12614,11 +12618,12 @@ function showAdminCreatedUserResult(values, result) {
   if (!holder || !tempPassword) return;
 
   const email = result?.user?.email ?? values.email ?? '';
+  const emailLabel = result?.synthetic_email ? 'Email interno de acceso' : 'Email';
   const userId = result?.user?.user_id ?? values.user_id ?? '';
   holder.hidden = false;
   holder.innerHTML = `
     <strong>Usuario creado.</strong>
-    <span style="display:block;margin-top:6px;">Email: ${escapeHTML(email)}</span>
+    <span style="display:block;margin-top:6px;">${emailLabel}: ${escapeHTML(email)}</span>
     <span style="display:block;margin-top:6px;">User ID: ${escapeHTML(userId || '-')}</span>
     <span style="display:block;margin-top:6px;">Contraseña temporal: <code>${escapeHTML(tempPassword)}</code></span>
     <button class="db-btn-secondary" type="button" data-action="copy-temp-password" data-temp-password="${escapeAttr(tempPassword)}">Copiar contraseña temporal</button>

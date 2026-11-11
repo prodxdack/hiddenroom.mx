@@ -113,8 +113,12 @@ function syncRegisterMode() {
   const emailLabel = document.querySelector('label[for="usuario"]');
   const emailInput = document.getElementById("usuario");
   const title = document.querySelector(".login-title");
-  if (emailLabel) emailLabel.textContent = registerMode ? "Email" : "Correo";
-  if (emailInput) emailInput.placeholder = "Correo";
+  if (emailLabel) emailLabel.textContent = registerMode ? "Email" : "Correo o WhatsApp";
+  if (emailInput) {
+    emailInput.type = registerMode ? "email" : "text";
+    emailInput.placeholder = registerMode ? "Correo" : "Correo o WhatsApp";
+    emailInput.autocomplete = registerMode ? "email" : "username";
+  }
   if (title) title.innerHTML = registerMode ? "Registrarse" : "Inicia<br>Sesion";
 
   submitButton.textContent = registerMode ? "Registrarse" : "Entrar";
@@ -185,7 +189,8 @@ passwordResetLink?.addEventListener("click", async (event) => {
 
   if (passwordResetBusy || Date.now() < passwordResetCooldownUntil) return;
 
-  const email = document.getElementById("usuario").value.trim();
+  const identifier = document.getElementById("usuario").value.trim();
+  const email = identifier;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     alert("Usuario no registrado");
     return;
@@ -266,10 +271,11 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const digits = identifier.replace(/\D/g, "");
+  const credentials = identifier.includes("@")
+    ? { email: identifier, password }
+    : { phone: digits ? `+${digits}` : identifier, password };
+  const { error } = await supabase.auth.signInWithPassword(credentials);
 
   if (error) {
     alert("Login incorrecto");
