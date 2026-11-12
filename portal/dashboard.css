@@ -49,6 +49,60 @@
   display: block;
 }
 
+/* CRM MVP */
+.hr-crm-section { max-width: 1500px; }
+.hr-crm-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 var(--space-lg); border-bottom: var(--border-subtle); }
+.hr-crm-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--white-faint); padding: 12px 14px; cursor: pointer; font: inherit; }
+.hr-crm-tabs button.is-active, .hr-crm-tabs button:hover { color: var(--white); border-bottom-color: var(--red); }
+.hr-crm-metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-md); margin-bottom: var(--space-lg); }
+.hr-crm-metric, .hr-crm-panel, .hr-crm-column { background: var(--surface); border: var(--border-subtle); }
+.hr-crm-metric { padding: var(--space-md); min-height: 118px; display: flex; flex-direction: column; justify-content: space-between; }
+.hr-crm-metric span, .hr-crm-metric small { color: var(--white-faint); font-size: var(--text-xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; }
+.hr-crm-metric strong { font-size: clamp(1.25rem, 2vw, 1.8rem); color: var(--white); }
+.hr-crm-metric--income strong { color: var(--green, #73d39c); }
+.hr-crm-metric--potential strong { color: var(--coupon, #f4b75b); }
+.hr-crm-metric--danger strong { color: var(--red); }
+.hr-crm-dashboard-grid, .hr-crm-report-grid, .hr-crm-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-lg); }
+.hr-crm-panel { padding: var(--space-lg); min-width: 0; }
+.hr-crm-panel__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-md); margin-bottom: var(--space-md); }
+.hr-crm-panel__head h2 { margin: 3px 0 0; font-size: var(--text-lg); }
+.hr-crm-actions { display: flex; flex-direction: column; gap: var(--space-sm); }
+.hr-crm-action { display: flex; justify-content: space-between; gap: var(--space-md); align-items: center; border: var(--border-subtle); padding: var(--space-md); }
+.hr-crm-action.is-urgent { border-color: color-mix(in srgb, var(--red) 70%, transparent); }
+.hr-crm-action div:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hr-crm-action span, .hr-crm-opportunity span, .hr-crm-opportunity small { color: var(--white-faint); font-size: var(--text-xs); }
+.hr-crm-action__buttons, .hr-crm-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.hr-crm-health { display: flex; flex-direction: column; gap: 6px; padding: var(--space-lg) 0; }
+.hr-crm-health strong { font-size: 2.3rem; color: var(--white); }
+.hr-crm-health span, .hr-crm-health small, .hr-crm-note { color: var(--white-faint); font-size: var(--text-sm); }
+.hr-crm-note { border-left: 2px solid var(--red-dim); padding-left: var(--space-md); }
+.hr-crm-pipeline__toolbar { display: flex; gap: var(--space-md); align-items: end; margin-bottom: var(--space-lg); flex-wrap: wrap; }
+.hr-crm-pipeline__toolbar .db-field { min-width: 190px; }
+.hr-crm-board { display: grid; grid-template-columns: repeat(5, minmax(190px, 1fr)); gap: var(--space-md); overflow-x: auto; padding-bottom: var(--space-sm); }
+.hr-crm-column { min-width: 190px; }
+.hr-crm-column header { display: flex; justify-content: space-between; padding: var(--space-md); border-bottom: var(--border-subtle); color: var(--white-dim); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+.hr-crm-column__body { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-sm); min-height: 160px; }
+.hr-crm-column__empty { color: var(--white-faint); font-size: var(--text-xs); text-align: center; padding: var(--space-md); }
+.hr-crm-opportunity { display: flex; flex-direction: column; gap: 6px; background: var(--near-black); border: var(--border-subtle); padding: var(--space-md); }
+.hr-crm-opportunity:hover { border-color: var(--red-dim); }
+.hr-crm-opportunity__title { display: flex; justify-content: space-between; gap: 6px; align-items: start; }
+.hr-crm-opportunity__title button { border: 0; background: transparent; color: var(--red); cursor: pointer; font-size: var(--text-xs); }
+.hr-crm-opportunity b { color: var(--white); font-size: var(--text-sm); }
+.hr-crm-opportunity select { width: 100%; background: var(--surface); border: var(--border-subtle); color: var(--white-dim); padding: 6px; font: inherit; }
+.hr-crm-whatsapp { color: var(--green, #73d39c); font-size: var(--text-xs); }
+.hr-crm-client-search { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.hr-crm-client-search input { flex: 1; min-width: 0; background: var(--near-black); border: var(--border-subtle); color: var(--white); padding: 11px 12px; font: inherit; }
+.hr-crm-table-wrap { overflow-x: auto; }
+.hr-crm-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.hr-crm-table th, .hr-crm-table td { padding: 12px; border-bottom: var(--border-subtle); text-align: left; vertical-align: top; }
+.hr-crm-table th { color: var(--white-faint); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+.hr-crm-table td small { display: block; color: var(--white-faint); margin-top: 4px; }
+.hr-crm-badge { display: inline-block; border: 1px solid var(--red-dim); color: var(--white-dim); padding: 4px 7px; font-size: var(--text-xs); }
+.hr-crm-report-list { display: flex; flex-direction: column; gap: 4px; }
+.hr-crm-report-list > div { display: flex; justify-content: space-between; gap: var(--space-md); padding: 10px 0; border-bottom: var(--border-subtle); color: var(--white-dim); }
+@media (max-width: 1100px) { .hr-crm-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } .hr-crm-board { grid-template-columns: repeat(5, 210px); } }
+@media (max-width: 720px) { .hr-crm-metrics, .hr-crm-dashboard-grid, .hr-crm-report-grid, .hr-crm-form-grid { grid-template-columns: 1fr; } .hr-crm-metric { min-height: 96px; } .hr-crm-action { align-items: flex-start; flex-direction: column; } .hr-crm-action__buttons { width: 100%; } .hr-crm-client-search { flex-direction: column; } .hr-crm-panel { padding: var(--space-md); } }
+
 /* Disable public-site analog effects inside the portal only. */
 .db-body::before,
 .db-body #scanlines {

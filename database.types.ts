@@ -15,6 +15,69 @@ export type Database = {
   graphql_public: {
     Tables: {
       [_ in never]: never
+      sales_activities: {
+        Row: {
+          activity_type: string
+          channel: string
+          created_at: string
+          direction: string
+          external_message_ref: string | null
+          id: string
+          lead_id: string
+          next_action: string | null
+          next_followup_at: string | null
+          occurred_at: string
+          opportunity_id: string | null
+          outcome: string | null
+          responsible: string | null
+          summary: string | null
+        }
+        Insert: {
+          activity_type?: string
+          channel: string
+          created_at?: string
+          direction: string
+          external_message_ref?: string | null
+          id?: string
+          lead_id: string
+          next_action?: string | null
+          next_followup_at?: string | null
+          occurred_at?: string
+          opportunity_id?: string | null
+          outcome?: string | null
+          responsible?: string | null
+          summary?: string | null
+        }
+        Update: {
+          activity_type?: string
+          channel?: string
+          created_at?: string
+          direction?: string
+          external_message_ref?: string | null
+          id?: string
+          lead_id?: string
+          next_action?: string | null
+          next_followup_at?: string | null
+          occurred_at?: string
+          opportunity_id?: string | null
+          outcome?: string | null
+          responsible?: string | null
+          summary?: string | null
+        }
+        Relationships: []
+      }
+      sales_leads: {
+        Row: { business_unit: string; created_at: string; display_name: string; first_inbound_at: string | null; first_outbound_at: string | null; first_purchase_at: string | null; first_seen_at: string | null; id: string; instagram: string | null; notes: string | null; source: string | null; updated_at: string; user_id: string | null; whatsapp: string | null }
+        Insert: { business_unit?: string; created_at?: string; display_name: string; first_inbound_at?: string | null; first_outbound_at?: string | null; first_purchase_at?: string | null; first_seen_at?: string | null; id?: string; instagram?: string | null; notes?: string | null; source?: string | null; updated_at?: string; user_id?: string | null; whatsapp?: string | null }
+        Update: { business_unit?: string; created_at?: string; display_name?: string; first_inbound_at?: string | null; first_outbound_at?: string | null; first_purchase_at?: string | null; first_seen_at?: string | null; id?: string; instagram?: string | null; notes?: string | null; source?: string | null; updated_at?: string; user_id?: string | null; whatsapp?: string | null }
+        Relationships: []
+      }
+      sales_opportunities: {
+        Row: { business_unit: string; closed_at: string | null; created_at: string; currency: string; estimated_amount: number | null; id: string; kind: string; lead_id: string; lost_reason: string | null; next_followup_at: string | null; notes: string | null; service: string | null; source: string | null; stage: string; updated_at: string }
+        Insert: { business_unit?: string; closed_at?: string | null; created_at?: string; currency?: string; estimated_amount?: number | null; id?: string; kind?: string; lead_id: string; lost_reason?: string | null; next_followup_at?: string | null; notes?: string | null; service?: string | null; source?: string | null; stage?: string; updated_at?: string }
+        Update: { business_unit?: string; closed_at?: string | null; created_at?: string; currency?: string; estimated_amount?: number | null; id?: string; kind?: string; lead_id?: string; lost_reason?: string | null; next_followup_at?: string | null; notes?: string | null; service?: string | null; source?: string | null; stage?: string; updated_at?: string }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

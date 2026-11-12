@@ -20,6 +20,7 @@ import { cloudSourceToFile, createCloudSourcePicker, joinCloudPath, walkCloudSou
 import { getHrDisclosureState, renderHrDisclosure } from "../assets/js/hr-disclosure.js?v=20261028-hr-disclosure-v2";
 import { createLegalService, sha256Hex } from "../assets/js/legal-service.js?v=20261031-global-legal-gate-v7";
 import { initProfileAvatarEditor, resolveProfileAvatarUrl } from "../assets/js/profile-avatar-editor.js?v=20261030-profile-avatar-editor-v1";
+import { createCrmController } from "./crm.js?v=20261112-crm-mvp-v1";
 
 'use strict';
 
@@ -60,6 +61,13 @@ async function getSupabaseClient() {
 }
 
 const supabase = await getSupabaseClient();
+
+const crmController = createCrmController({
+  supabase,
+  getUser: () => state.user,
+  showToast: (...args) => showToast(...args),
+  navigate: (section) => navigate(section),
+});
 const legalService = createLegalService(supabase);
 
 const PROFILE_UPDATE_WHATSAPP = '5210000000000';
@@ -820,6 +828,11 @@ const SECTIONS = {
     roleRequired: 'admin',
     render: renderErpOps,
   },
+  crm: {
+    label: 'CRM Comercial',
+    roleRequired: 'admin',
+    render: crmController.render,
+  },
   'erp-csv-upload': {
     label: 'Subir CSV',
     permissionAnyRequired: ['erp.finance.input', 'erp.ops.input'],
@@ -943,6 +956,7 @@ const PORTAL_NAV_GROUPS = [
     items: [
       { label: 'Finanzas', section: 'erp-finance', icon: 'chart' },
       { label: 'Operaciones', section: 'erp-ops', icon: 'settings' },
+      { label: 'CRM Comercial', section: 'crm', icon: 'users' },
       { label: 'Subir CSV', section: 'erp-csv-upload', icon: 'doc' },
       { label: 'Permisos', section: 'erp-permissions', icon: 'users' },
       { label: 'Documentos legales', section: 'erp-legal', icon: 'doc' },
@@ -14020,6 +14034,7 @@ function attachMainDelegation() {
   const main = document.getElementById('js-main');
 
   main?.addEventListener('click', (e) => {
+    if (crmController.handleClick(e)) return;
     const action = e.target.closest('[data-action]')?.dataset.action;
     const trendSeries = e.target.closest('[data-finance-trend-series]');
     if (trendSeries) {
@@ -14438,6 +14453,7 @@ function attachMainDelegation() {
   });
 
   main?.addEventListener('change', (e) => {
+    if (crmController.handleChange(e)) return;
     const cloudFileInput = e.target.closest('#js-cloud-file-input');
     if (cloudFileInput && cloudFileInput.files?.length) {
       const file = cloudFileInput.files[0];
@@ -14601,6 +14617,7 @@ function attachMainDelegation() {
   });
 
   main?.addEventListener('input', (e) => {
+    if (crmController.handleInput(e)) return;
     const tableSearch = e.target.closest('[data-table-search]');
     if (tableSearch) {
       const tableName = tableSearch.dataset.adminTableName;
@@ -14659,6 +14676,16 @@ function attachMainDelegation() {
 
   main?.addEventListener('submit', (e) => {
     const form = e.target.closest('form[data-form]');
+    const crmForm = e.target.closest('form[data-crm-form]');
+    if (crmForm) {
+      e.preventDefault();
+      if (state.viewAs?.active) {
+        showToast('La vista como usuario es de solo lectura.', 'error');
+        return;
+      }
+      crmController.handleSubmit(crmForm);
+      return;
+    }
     if (!form) return;
 
     e.preventDefault();
